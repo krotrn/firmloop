@@ -49,7 +49,7 @@ select = ["E", "F", "W", "I", "B", "UP", "ASYNC", "RUF"]
 
 [tool.pyright]
 pythonVersion = "3.12"
-include = ["src", "tests"]
+include = ["src", "tests", "scripts"]
 typeCheckingMode = "standard"
 strict = [
     "src/firmloop/spec",
