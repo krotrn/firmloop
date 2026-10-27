@@ -1,0 +1,66 @@
+[project]
+name = "firmloop"
+version = "0.1.0"
+description = "FirmLoop backend: agent loop, API, DB"
+readme = "README.md"
+authors = [
+    { name = "Karan Kumar Sah", email = "krotrn.ks@gmail.com" }
+]
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "aiosqlite>=0.22.1",
+    "alembic>=1.20.1",
+    "anthropic>=2.3.0",
+    "fastapi>=0.162.0",
+    "google-genai>=2.33.0",
+    "httpx>=0.28.1",
+    "jinja2>=3,<4",
+    "pydantic>=2,<3",
+    "pydantic-settings>=2,<3",
+    "python-ulid>=4.1.0",
+    "pyyaml>=6.0.3",
+    "sqlalchemy[asyncio]>=2,<3",
+    "tree-sitter>=0.26.0",
+    "tree-sitter-cpp>=0.23.4",
+    "uvicorn[standard]>=0.54.0",
+    "websockets>=17.3",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.31,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.1",
+    "respx>=0.23.1",
+    "ruff>=0.17.3",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "ASYNC", "RUF"]
+
+[tool.pyright]
+pythonVersion = "3.12"
+include = ["src", "tests"]
+typeCheckingMode = "standard"
+strict = [
+    "src/firmloop/spec",
+    "src/firmloop/safety",
+    "src/firmloop/agent",
+    "src/firmloop/llm",
+]
+venvPath = "."
+venv = ".venv"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
