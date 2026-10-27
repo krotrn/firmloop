@@ -1,0 +1,33 @@
+# Secrets and local data
+.env
+data/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.pyright/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+frontend/test-results/
+frontend/playwright-report/
+*.tsbuildinfo
+next-env.d.ts
+
+# Build outputs and firmware binaries
+build/
+dist/
+*.o
+*.bin
+*.elf
+
+# Editors / OS
+.DS_Store
+.idea/
+
+# shared/schemas/*.json is generated but committed (do not ignore)
