@@ -5,7 +5,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.11.31 /uv /bin/uv
 WORKDIR /opt/device
 
 COPY pyproject.toml uv.lock ./
-RUN UV_PYTHON_DOWNLOADS=never UV_PROJECT_ENVIRONMENT=/opt/device/.venv \
+RUN --mount=type=cache,target=/root/.cache/uv UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never UV_PROJECT_ENVIRONMENT=/opt/device/.venv \
     uv sync --frozen --no-dev
 
 COPY app.py ./

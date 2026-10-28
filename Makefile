@@ -4,6 +4,17 @@
 PROVIDER ?= gemini
 TASKS ?=
 
+# Run prefixes for backend/frontend checks against the working tree (not the baked image copy).
+# Source is bind-mounted over /app; dependencies stay in anonymous volumes seeded from the image.
+# Frontend calls node_modules/.bin tools directly (same commands as the package.json scripts) because
+# the corepack pnpm cache lives under /root and is unreadable to the host user.
+# Runs as the host user with HOME and tool caches in /tmp so nothing lands in the host tree.
+HOST_USER := $(shell id -u):$(shell id -g)
+BACKEND_RUN := docker compose run --rm --user $(HOST_USER) -v $(CURDIR)/backend:/app -v /app/.venv \
+	-e HOME=/tmp -e UV_NO_SYNC=1 -e UV_CACHE_DIR=/tmp/uv -e RUFF_CACHE_DIR=/tmp/ruff backend
+FRONTEND_RUN := docker compose run --rm --user $(HOST_USER) -v $(CURDIR)/frontend:/app -v /app/node_modules -v /app/.next \
+	-e HOME=/tmp -e XDG_CACHE_HOME=/tmp/cache -e COREPACK_HOME=/tmp/corepack frontend
+
 .DEFAULT_GOAL := help
 .PHONY: help build up up-ollama down logs doctor test test-backend test-firmware test-frontend lint schemas bench bench-validate db-reset migrate
 
@@ -33,20 +44,20 @@ doctor: ## Environment check, runs on the host
 test: test-backend test-firmware test-frontend ## Run all tests
 
 test-backend: ## Backend pytest inside the backend container
-	docker compose run --rm backend uv run pytest -q
+	$(BACKEND_RUN) uv run pytest -q -p no:cacheprovider
 
 test-firmware: ## Firmware harness + library self-tests in the runner image
 	docker compose run --rm --no-deps runner sh /repo/firmware/native/selftest/run.sh
 
 test-frontend: ## Frontend vitest inside the frontend container
-	docker compose run --rm frontend pnpm test
+	$(FRONTEND_RUN) node_modules/.bin/vitest run
 
 lint: ## ruff check/format, pyright, eslint, tsc --noEmit
-	docker compose run --rm backend uv run ruff check .
-	docker compose run --rm backend uv run ruff format --check .
-	docker compose run --rm backend uv run pyright
-	docker compose run --rm frontend pnpm lint
-	docker compose run --rm frontend pnpm typecheck
+	$(BACKEND_RUN) uv run ruff check .
+	$(BACKEND_RUN) uv run ruff format --check .
+	$(BACKEND_RUN) uv run pyright
+	$(FRONTEND_RUN) node_modules/.bin/eslint
+	$(FRONTEND_RUN) node_modules/.bin/tsc --noEmit --incremental false
 
 schemas: ## Export OpenAPI + JSON Schemas and regenerate frontend types (not implemented yet, task 5.8)
 	@echo "schemas: not implemented yet (task 5.8)"

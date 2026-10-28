@@ -18,12 +18,12 @@ WORKDIR /app
 
 # dependencies first (cached layer); dev group included so tests and lint run in this image
 COPY pyproject.toml uv.lock README.md ./
-RUN uv sync --no-install-project
+RUN --mount=type=cache,target=/root/.cache/uv UV_LINK_MODE=copy uv sync --no-install-project
 
 COPY src ./src
 COPY tests ./tests
 COPY scripts ./scripts
-RUN uv sync
+RUN --mount=type=cache,target=/root/.cache/uv UV_LINK_MODE=copy uv sync
 
 EXPOSE 8000
 
