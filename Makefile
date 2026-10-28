@@ -30,14 +30,13 @@ logs: ## Follow service logs
 doctor: ## Environment check, runs on the host
 	uv run --project backend python backend/scripts/doctor.py
 
-test: test-backend test-frontend ## Run all tests (backend + frontend for now)
+test: test-backend test-firmware test-frontend ## Run all tests
 
 test-backend: ## Backend pytest inside the backend container
 	docker compose run --rm backend uv run pytest -q
 
-test-firmware: ## Firmware harness self-tests (not implemented yet, task 1.8)
-	@echo "test-firmware: not implemented yet (task 1.8)"
-	@exit 1
+test-firmware: ## Firmware harness + library self-tests in the runner image
+	docker compose run --rm --no-deps runner sh /repo/firmware/native/selftest/run.sh
 
 test-frontend: ## Frontend vitest inside the frontend container
 	docker compose run --rm frontend pnpm test

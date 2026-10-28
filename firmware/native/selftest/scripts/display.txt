@@ -1,0 +1,4 @@
+CASE display
+SET temp 30.14
+RUN 200
+END

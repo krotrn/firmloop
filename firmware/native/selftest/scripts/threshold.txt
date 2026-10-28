@@ -1,0 +1,10 @@
+CASE threshold
+SET temp 29.0
+SET humidity 50.0
+SET light 2000
+SET motion 0
+SET button 0
+RUN 500
+SET temp 30.1
+RUN 1000
+END

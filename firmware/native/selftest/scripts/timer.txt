@@ -1,0 +1,7 @@
+CASE timer
+RUN 100
+SET button 1
+RUN 150
+SET button 0
+RUN 600
+END
