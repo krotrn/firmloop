@@ -1,0 +1,30 @@
+id: dht22
+name: DHT22 temperature & humidity sensor
+kind: sensor
+pins: { data: 4 }
+driver:
+  header: driver.h
+  class: Dht22Driver
+  libraries:
+    - "DHT sensor library@1.4.7"
+    - "Adafruit Unified Sensor@1.1.15"
+sample_interval_ms: 2000
+channels:
+  - id: temp
+    type: float
+    unit: "C"
+    resolution: 0.1
+    range: [-40, 80]
+    plausible: [0, 60]
+    neutral: 25.0
+    default_hysteresis: 0.5
+    injectable: true
+  - id: humidity
+    type: float
+    unit: "%"
+    resolution: 0.1
+    range: [0, 100]
+    plausible: [5, 95]
+    neutral: 50.0
+    default_hysteresis: 2.0
+    injectable: true

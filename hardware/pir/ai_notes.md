@@ -1,0 +1,3 @@
+- `motion` (bool): true while movement is detected, false otherwise.
+- The sensor holds its output high for a few seconds after movement, so it stays true for a while after someone leaves.
+- For "no motion for N seconds" rules, measure time from the last tick where motion was true.

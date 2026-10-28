@@ -1,0 +1,16 @@
+id: ldr
+name: LDR light sensor with 10k divider
+kind: sensor
+pins: { signal: 34 }
+driver: { header: driver.h, class: LdrDriver, libraries: [] }
+sample_interval_ms: 100
+channels:
+  - id: light
+    type: int
+    unit: "raw ADC"
+    resolution: 1
+    range: [0, 4095]
+    plausible: [20, 4075]
+    neutral: 2000
+    default_hysteresis: 100
+    injectable: true

@@ -1,0 +1,2 @@
+- `led` (bool, actuator): true = lit, false = off. Write with `setBool("led", ...)`.
+- A single on/off LED with no brightness control; for blinking, toggle from a timer based on `now_ms`.

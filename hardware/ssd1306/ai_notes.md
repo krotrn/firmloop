@@ -1,0 +1,3 @@
+- `display` (text, actuator-like): 4 rows of 21 characters. Use `displayLine(row, text)` with row 0..3; longer text is truncated.
+- Rows are not cleared automatically; write all rows you care about (empty string to clear one) or call `displayClear()`.
+- Plain ASCII only. Format numbers with `snprintf` (e.g. `"Temp: %.1fC"`).

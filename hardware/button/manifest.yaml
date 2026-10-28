@@ -1,0 +1,11 @@
+id: button
+name: Push button (to GND, internal pull-up)
+kind: sensor
+pins: { signal: 19 }
+driver: { header: driver.h, class: ButtonDriver, libraries: [] }
+sample_interval_ms: 20
+channels:
+  - id: button
+    type: bool
+    neutral: false
+    injectable: true

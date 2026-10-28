@@ -1,0 +1,11 @@
+id: pir
+name: HC-SR501 PIR motion sensor
+kind: sensor
+pins: { signal: 27 }
+driver: { header: driver.h, class: PirDriver, libraries: [] }
+sample_interval_ms: 50
+channels:
+  - id: motion
+    type: bool
+    neutral: false
+    injectable: true

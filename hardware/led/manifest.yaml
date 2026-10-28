@@ -1,0 +1,9 @@
+id: led
+name: LED with 220 ohm resistor
+kind: actuator
+pins: { signal: 18 }
+driver: { header: driver.h, class: LedDriver, libraries: [] }
+channels:
+  - id: led
+    type: bool
+    neutral: false

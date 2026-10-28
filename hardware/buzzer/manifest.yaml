@@ -1,0 +1,9 @@
+id: buzzer
+name: Active buzzer
+kind: actuator
+pins: { signal: 25 }
+driver: { header: driver.h, class: BuzzerDriver, libraries: [] }
+channels:
+  - id: buzzer
+    type: bool
+    neutral: false

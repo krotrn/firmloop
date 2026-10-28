@@ -1,0 +1,3 @@
+- `buzzer` (bool, actuator): true = sounding, false = silent. Write with `setBool("buzzer", ...)`.
+- Active buzzer with a fixed tone: it cannot play melodies or change pitch.
+- For beeps, toggle it from a timer based on `now_ms`; never block or delay in `user_tick`.

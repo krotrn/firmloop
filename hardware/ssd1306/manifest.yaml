@@ -1,0 +1,17 @@
+id: ssd1306
+name: SSD1306 0.96" OLED display (I2C)
+kind: display
+pins: { sda: 21, scl: 22 }
+driver:
+  header: driver.h
+  class: Ssd1306Driver
+  libraries:
+    - "Adafruit SSD1306@2.5.17"
+    - "Adafruit GFX Library@1.13.0"
+    - "Adafruit BusIO@1.17.4"
+rows: 4
+cols: 21
+channels:
+  - id: display
+    type: text
+    neutral: ""

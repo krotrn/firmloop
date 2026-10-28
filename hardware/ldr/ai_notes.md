@@ -1,0 +1,3 @@
+- `light` (int, raw 12-bit ADC, 0..4095): higher = brighter, lower = darker.
+- Typical values: dark room < 500, indoor lighting 1000-2500, bright light > 3500.
+- Readings are noisy; use a hysteresis gap (about 100) around any threshold to avoid flicker.

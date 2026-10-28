@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Annotated
 
 from pydantic import field_validator
@@ -11,6 +12,8 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ]
+
+    hardware_dir: Path = Path("/repo/hardware")
 
     @field_validator("frontend_origins", mode="before")
     @classmethod

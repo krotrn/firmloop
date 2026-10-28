@@ -1,0 +1,3 @@
+- `temp` (float, deg C, -40..80, 0.1 steps): ambient air temperature. Typical room value 20-35. Use hysteresis (about 0.5) for threshold rules.
+- `humidity` (float, % relative, 0..100, 0.1 steps): typical 30-70.
+- The DHT22 only updates every 2 s; values are steady between updates, so do not expect fast changes.

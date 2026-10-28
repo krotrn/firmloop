@@ -1,0 +1,3 @@
+- `fan` (bool, actuator): true = fan running, false = off. Write with `setBool("fan", ...)`.
+- The relay is active-low in hardware; the driver handles the inversion, so just use true for on.
+- Starts off at boot. Avoid toggling faster than a few times per minute (relay wear); use hysteresis.

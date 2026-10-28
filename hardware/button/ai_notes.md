@@ -1,0 +1,3 @@
+- `button` (bool): true while the button is held down, false when released (pressed = true).
+- It is a level, not an event: detect a press by comparing with the previous tick's value (rising edge).
+- Mechanical bounce is filtered by the driver; very short taps under about 20 ms may be missed.

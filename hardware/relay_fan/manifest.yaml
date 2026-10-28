@@ -1,0 +1,10 @@
+id: relay_fan
+name: Relay-switched 5V fan
+kind: actuator
+pins: { signal: 26 }
+driver: { header: driver.h, class: RelayDriver, libraries: [] }
+active_low: true
+channels:
+  - id: fan
+    type: bool
+    neutral: false
