@@ -74,6 +74,19 @@ class FollowupSpec(Spec):
     removed_ids: list[str] = Field(default_factory=list)
 
 
+class TestCase(_Model):
+    """One generated test: a scenario plus where it came from."""
+
+    __test__ = False  # not a pytest class
+
+    id: str  # "s:<scenario>", "b:<rule>:lo|hi", "h:<rule>", "tt:<rule>:<bits>"
+    origin: Literal["scenario", "boundary", "truth_table"]
+    origin_rule_id: str | None = None
+    origin_scenario_id: str | None = None
+    from_base: bool = False  # origin id unchanged from the base spec: a regression test
+    scenario: Scenario
+
+
 class Question(_Model):
     question: str
     reason: str

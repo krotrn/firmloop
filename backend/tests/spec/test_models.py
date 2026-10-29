@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from firmloop.spec.models import FollowupSpec, FollowupUnderstandResult, Spec
+from firmloop.spec.models import FollowupSpec, FollowupUnderstandResult, Spec, TestCase
 
 from .samples import VALID_SPEC
 
@@ -89,3 +89,20 @@ def test_followup_understand_result() -> None:
         {"kind": "spec", "spec": {**VALID_SPEC, "removed_ids": ["s2"]}}
     )
     assert r.spec is not None and r.spec.removed_ids == ["s2"]
+
+
+def test_test_case_shape() -> None:
+    scenario = Spec.model_validate(VALID_SPEC).scenarios[0].model_dump()
+    case = TestCase.model_validate(
+        {
+            "id": "b:r1:hi",
+            "origin": "boundary",
+            "origin_rule_id": "r1",
+            "origin_scenario_id": None,
+            "from_base": True,
+            "scenario": scenario,
+        }
+    )
+    assert case.model_dump(mode="json")["scenario"]["id"] == scenario["id"]
+    with pytest.raises(ValidationError):
+        TestCase.model_validate({**case.model_dump(), "origin": "inherited"})
