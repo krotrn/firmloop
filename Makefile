@@ -1,4 +1,4 @@
-# FirmLoop task runner. Everything runs through docker compose v2 (see CLAUDE.md §4).
+# FirmLoop task runner. Everything runs through docker compose v2.
 # Run `make` or `make help` to list targets.
 
 PROVIDER ?= gemini
@@ -10,8 +10,9 @@ TASKS ?=
 # the corepack pnpm cache lives under /root and is unreadable to the host user.
 # Runs as the host user with HOME and tool caches in /tmp so nothing lands in the host tree; the
 # mkdir pre-creates the anonymous-volume mountpoints so Docker does not create them root-owned.
+# shared/ is mounted read-only so the backend tests can check the committed schemas are current.
 HOST_USER := $(shell id -u):$(shell id -g)
-BACKEND_RUN := mkdir -p backend/.venv && docker compose run --rm --user $(HOST_USER) -v $(CURDIR)/backend:/app -v /app/.venv \
+BACKEND_RUN := mkdir -p backend/.venv && docker compose run --rm --user $(HOST_USER) -v $(CURDIR)/backend:/app -v /app/.venv -v $(CURDIR)/shared:/shared:ro \
 	-e HOME=/tmp -e UV_NO_SYNC=1 -e UV_CACHE_DIR=/tmp/uv -e RUFF_CACHE_DIR=/tmp/ruff backend
 FRONTEND_RUN := mkdir -p frontend/node_modules frontend/.next && docker compose run --rm --user $(HOST_USER) -v $(CURDIR)/frontend:/app -v /app/node_modules -v /app/.next \
 	-e HOME=/tmp -e XDG_CACHE_HOME=/tmp/cache -e COREPACK_HOME=/tmp/corepack frontend
@@ -48,7 +49,7 @@ test-backend: ## Backend pytest inside the backend container
 	$(BACKEND_RUN) uv run pytest -q -p no:cacheprovider
 
 # Builder-marked integration tests (slow, real arduino-cli). The builder is started explicitly here
-# instead of being a backend dependency, so `make test-backend` and `make up` stay fast (D-064).
+# instead of being a backend dependency, so `make test-backend` and `make up` stay fast.
 test-builder: ## Builder integration tests (starts the builder service, ESP32 compile)
 	docker compose up -d --wait builder
 	$(BACKEND_RUN) uv run pytest -q -p no:cacheprovider -m builder tests/integration/test_builder_build.py
@@ -68,8 +69,8 @@ lint: ## ruff check/format, pyright, eslint, tsc --noEmit
 	$(FRONTEND_RUN) node_modules/.bin/eslint
 	$(FRONTEND_RUN) node_modules/.bin/tsc --noEmit --incremental false
 
-schemas: ## Export OpenAPI + JSON Schemas and regenerate frontend types (not implemented yet, task 5.8)
-	@echo "schemas: not implemented yet (task 5.8)"
+schemas: ## Export OpenAPI + JSON Schemas and regenerate frontend types (not implemented yet)
+	@echo "schemas: not implemented yet"
 	@exit 1
 
 bench: ## Run benchmark: make bench PROVIDER=gemini [TASKS=t01,t02] (not implemented yet, benchmark tasks)
@@ -80,10 +81,10 @@ bench-validate: ## Check benchmark reference logic and mutants (not implemented 
 	@echo "bench-validate: not implemented yet (benchmark tasks)"
 	@exit 1
 
-db-reset: ## Delete ./data (asks first) (not implemented yet, task 4.1)
-	@echo "db-reset: not implemented yet (task 4.1)"
+db-reset: ## Delete ./data (asks first) (not implemented yet)
+	@echo "db-reset: not implemented yet"
 	@exit 1
 
-migrate: ## Apply Alembic migrations (alembic upgrade head) (not implemented yet, task 4.1)
-	@echo "migrate: not implemented yet (task 4.1)"
+migrate: ## Apply Alembic migrations (alembic upgrade head) (not implemented yet)
+	@echo "migrate: not implemented yet"
 	@exit 1
