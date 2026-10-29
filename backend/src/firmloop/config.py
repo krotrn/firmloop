@@ -15,6 +15,11 @@ class Settings(BaseSettings):
 
     hardware_dir: Path = Path("/repo/hardware")
     runner_url: str = "http://runner:8101"
+    builder_url: str = "http://builder:8102"
+
+    # ARCHITECTURE section 17
+    native_request_timeout_s: float = 90.0
+    build_timeout_s: float = 240.0
 
     @field_validator("frontend_origins", mode="before")
     @classmethod
