@@ -47,6 +47,8 @@ test: test-backend test-firmware test-frontend ## Run all tests
 test-backend: ## Backend pytest inside the backend container
 	$(BACKEND_RUN) uv run pytest -q -p no:cacheprovider
 
+# The runner image bakes firmware/lib/FirmLoop/src and firmware/native; after changing them run
+# `docker compose build runner` first, or the image tests stale headers and harness objects.
 test-firmware: ## Firmware harness + library self-tests in the runner image
 	docker compose run --rm --no-deps runner sh /repo/firmware/native/selftest/run.sh
 

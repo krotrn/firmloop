@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     ]
 
     hardware_dir: Path = Path("/repo/hardware")
+    runner_url: str = "http://runner:8101"
 
     @field_validator("frontend_origins", mode="before")
     @classmethod

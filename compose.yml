@@ -36,13 +36,19 @@ services:
       - ./benchmark:/repo/benchmark:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    depends_on:
+      runner:
+        condition: service_healthy
     networks: [app, sandbox, tools]
     healthcheck:
       <<: *health-py
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
 
   runner:
-    build: ./runner
+    build:
+      context: ./runner
+      additional_contexts:
+        firmware: ./firmware
     image: firmloop-runner:dev
     read_only: true
     tmpfs:
