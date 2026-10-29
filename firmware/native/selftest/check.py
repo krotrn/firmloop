@@ -177,6 +177,19 @@ def a_unknown(st, sn):
     return None if sn else "no snapshots"
 
 
+def a_bad_set(st, sn):
+    # nan / inf / out-of-range SET values are rejected like malformed numbers: error recorded,
+    # sensor keeps its neutral value, and no non-finite number is ever printed.
+    if st != "ok":
+        return "status " + st
+    want = ['BAD_VALUE: SET("temp")', 'BAD_VALUE: SET("humidity")', 'BAD_VALUE: SET("light")']
+    if not sn or sn[0]["err"] != want:
+        return "err=%r" % (sn[0]["err"] if sn else None)
+    if sn[0]["s"]["temp"] != 25.0 or sn[0]["s"]["humidity"] != 50.0 or sn[0]["s"]["light"] != 2000:
+        return "sensor changed: %r" % sn[0]["s"]
+    return None
+
+
 def expect_status(want):
     return lambda st, sn: None if st == want else "status %s, want %s" % (st, want)
 
@@ -191,6 +204,7 @@ CASES = [
     ("display", a_display),
     ("timer", a_timer),
     ("unknown_channel", a_unknown),
+    ("bad_set", a_bad_set, {"logic": "threshold"}),
     ("busy_loop", expect_status("timeout")),
     ("fopen_after", expect_status("killed")),
     ("stack_smash", expect_status("killed")),

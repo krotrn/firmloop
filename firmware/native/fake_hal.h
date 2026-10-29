@@ -25,4 +25,14 @@ void clearErrors();
 
 void setNow(uint32_t ms);
 
+// State accessor for fl::writeState() (fl_value.h): the harness snapshot and the parity test use
+// it so the `s`/`a`/`d` fragment is produced by the same code as the ESP32 telemetry.
+struct View {
+  float f(int i) const { return floatValue(i); }
+  int32_t iv(int i) const { return intValue(i); }
+  bool b(int i) const { return boolValue(i); }
+  bool eff(int i) const { return boolValue(i); }
+  const char* row(int r) const { return displayRow(r); }
+};
+
 }  // namespace fakehal

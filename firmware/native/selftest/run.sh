@@ -22,5 +22,9 @@ g++ $CXXFLAGS "$HERE/unit_check.cpp" "$NATIVE/fake_hal.cpp" "$HERE/channels.gene
   -lm -o "$B/unit_check"
 "$B/unit_check"
 
+echo "== core_check (fl_core: ESP32 runtime logic)"
+g++ $CXXFLAGS "$HERE/core_check.cpp" "$NATIVE/fake_hal.cpp" "$HERE/channels.generated.cpp" -lm -o "$B/core_check"
+"$B/core_check"
+
 echo "== harness cases"
 python3 "$HERE/check.py" "$B"

@@ -43,7 +43,20 @@ RUN set -eu; \
     mkdir -p /opt/arduino-user; \
     chmod -R a+rX /opt/arduino15 /opt/arduino-user
 
-# TODO(later task): install manifest libraries here (arduino-cli lib install ...).
+# Manifest libraries, exact versions (D-059). Separate layer after the core so editing this list
+# never re-downloads the toolchain. Keep in sync with hardware/*/manifest.yaml driver.libraries.
+RUN set -eu; \
+    for i in 1 2 3; do \
+        arduino-cli lib install \
+            "DHT sensor library@1.4.7" \
+            "Adafruit Unified Sensor@1.1.15" \
+            "Adafruit SSD1306@2.5.17" \
+            "Adafruit GFX Library@1.13.0" \
+            "Adafruit BusIO@1.17.4" && break; \
+        [ "$i" -lt 3 ] || exit 1; \
+        echo "lib install failed (try $i), retrying" >&2; sleep 5; \
+    done; \
+    chmod -R a+rX /opt/arduino-user
 
 COPY --from=ghcr.io/astral-sh/uv:0.11.31 /uv /bin/uv
 

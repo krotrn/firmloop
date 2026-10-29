@@ -5,6 +5,7 @@
 
 #include "FirmLoop.h"
 #include "FirmLoopInternal.h"
+#include "fl_value.h"
 
 namespace {
 
@@ -85,11 +86,15 @@ bool setSensor(const char* id, const char* text) {
   char* end = nullptr;
   if (d.type == fl::Type::Float) {
     float v = strtof(text, &end);
-    if (end == text) { addError("BAD_VALUE", "SET", id); return false; }
+    if (end == text || !fl::validSensorNumber(v)) { addError("BAD_VALUE", "SET", id); return false; }
     g_val[i].f = v;
   } else if (d.type == fl::Type::Int) {
-    long v = strtol(text, &end, 10);
-    if (end == text) { addError("BAD_VALUE", "SET", id); return false; }
+    // Parsed as a float then truncated, exactly like the ESP32 command path (fl_core.h).
+    float v = strtof(text, &end);
+    if (end == text || !fl::validSensorNumber(v)) {
+      addError("BAD_VALUE", "SET", id);
+      return false;
+    }
     g_val[i].i = (int32_t)v;
   } else if (d.type == fl::Type::Bool) {
     if (strcmp(text, "1") == 0 || strcmp(text, "true") == 0) g_val[i].b = true;

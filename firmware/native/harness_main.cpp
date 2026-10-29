@@ -28,6 +28,7 @@
 #include "FirmLoopInternal.h"
 #include "fake_hal.h"
 #include "fl_json.h"
+#include "fl_value.h"
 
 namespace {
 
@@ -115,27 +116,7 @@ void snapshot(uint32_t t) {
   fl::JsonWriter w(g_out, sizeof g_out);
   w.beginObj();
   w.key("t"); w.u32(t);
-  w.key("s"); w.beginObj();
-  for (int i = 0; i < fl::CHANNEL_COUNT; ++i) {
-    const fl::ChannelDef& d = fl::CHANNELS[i];
-    if (d.kind != fl::Kind::Sensor) continue;
-    w.key(d.id);
-    if (d.type == fl::Type::Float) w.f32(fakehal::floatValue(i), 1);
-    else if (d.type == fl::Type::Int) w.i32(fakehal::intValue(i));
-    else w.i32(fakehal::boolValue(i) ? 1 : 0);
-  }
-  w.endObj();
-  w.key("a"); w.beginObj();
-  for (int i = 0; i < fl::CHANNEL_COUNT; ++i) {
-    const fl::ChannelDef& d = fl::CHANNELS[i];
-    if (d.kind != fl::Kind::Actuator) continue;
-    w.key(d.id);
-    w.i32(fakehal::boolValue(i) ? 1 : 0);
-  }
-  w.endObj();
-  w.key("d"); w.beginArr();
-  for (int r = 0; r < fl::DISPLAY_ROWS; ++r) w.str(fakehal::displayRow(r));
-  w.endArr();
+  fl::writeState(w, fakehal::View());
   w.key("err"); w.beginArr();
   for (int e = 0; e < fakehal::errorCount(); ++e) w.str(fakehal::errorText(e));
   w.endArr();

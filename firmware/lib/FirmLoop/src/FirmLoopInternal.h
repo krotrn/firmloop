@@ -26,4 +26,8 @@ extern const char* const FW_ID;
 extern Driver* const DRIVERS[];     // ESP32 only
 extern const uint8_t DRIVER_COUNT;  // ESP32 only
 
+// ESP32 runtime entry points, called from the sketch template (ARCHITECTURE 5.2).
+void runtime_begin();                    // setup(): Serial, drivers, RTC test block, user_setup()
+void runtime_service(uint32_t now_ms);   // loop(): poll, serial, tick, apply, telemetry
+
 }  // namespace fl

@@ -1,0 +1,6 @@
+CASE bad_set
+SET temp nan
+SET humidity inf
+SET light 99999999999
+RUN 100
+END
