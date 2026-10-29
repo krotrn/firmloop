@@ -37,6 +37,7 @@ STDERR_DRAIN_KEEP = 64 * 1024
 COMPILE_LOG_LINES = 60
 COMPILE_LOG_LINE_CHARS = 500
 GXX = "g++"
+CANCEL_POLL_S = 0.05
 
 HARNESS_DIR = Path("/opt/harness")
 FIRMLOOP_INCLUDE = Path("/opt/firmloop/src")
@@ -69,6 +70,10 @@ class RunnerError(Exception):
 
 class CompileTimeoutError(Exception):
     """Raised by a compile function when its time budget is exhausted."""
+
+
+class CompileCancelledError(Exception):
+    """Raised by a compile function when its cancel event was set (g++ group already killed)."""
 
 
 # ---- models -----------------------------------------------------------------------------
@@ -207,7 +212,9 @@ def _kill_group(proc: "subprocess.Popen[bytes]") -> None:
     proc.communicate()  # reap the driver and drain its pipe
 
 
-def compile_sources(workdir: Path, timeout_s: float) -> CompileResult:
+def compile_sources(
+    workdir: Path, timeout_s: float, cancel: threading.Event | None = None
+) -> CompileResult:
     deadline = time.monotonic() + timeout_s
     flags = [*CXXFLAGS, f"-I{FIRMLOOP_INCLUDE}"]
     steps = [
@@ -227,6 +234,8 @@ def compile_sources(workdir: Path, timeout_s: float) -> CompileResult:
         ],
     ]
     for step in steps:
+        if cancel is not None and cancel.is_set():
+            raise CompileCancelledError
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise CompileTimeoutError
@@ -238,28 +247,45 @@ def compile_sources(workdir: Path, timeout_s: float) -> CompileResult:
             cwd=workdir,
             start_new_session=True,
         )
-        try:
-            raw, _ = proc.communicate(timeout=remaining)
-        except subprocess.TimeoutExpired as exc:
-            _kill_group(proc)
-            raise CompileTimeoutError from exc
+        while True:
+            if cancel is not None and cancel.is_set():
+                _kill_group(proc)
+                raise CompileCancelledError
+            left = deadline - time.monotonic()
+            if left <= 0:
+                _kill_group(proc)
+                raise CompileTimeoutError
+            try:
+                raw, _ = proc.communicate(timeout=min(left, CANCEL_POLL_S))
+            except subprocess.TimeoutExpired:
+                continue
+            break
         if proc.returncode != 0:
             output = raw.decode("utf-8", errors="replace")
             return CompileResult(ok=False, log=format_compile_log(output, workdir))
     return CompileResult(ok=True, log="")
 
 
-def _limits() -> None:
+def _apply_limits(cpu_soft: int, cpu_hard: int) -> None:
     # Runs in the forked child before exec, in a process that has threads: it must not import
     # modules or allocate beyond the setrlimit calls (everything it needs is bound at module
     # level), or it can deadlock on locks held by other threads at fork time.
-    # soft 2 s -> SIGXCPU (timeout); hard 3 s backstop (D-058). CORE 0: no core dumps (D-061).
-    resource.setrlimit(resource.RLIMIT_CPU, (2, 3))
+    # soft -> SIGXCPU (timeout); hard is a backstop (D-058). CORE 0: no core dumps (D-061).
+    resource.setrlimit(resource.RLIMIT_CPU, (cpu_soft, cpu_hard))
     resource.setrlimit(resource.RLIMIT_AS, (128 << 20, 128 << 20))
     resource.setrlimit(resource.RLIMIT_FSIZE, (1 << 20, 1 << 20))
     resource.setrlimit(resource.RLIMIT_NOFILE, (8, 8))
     resource.setrlimit(resource.RLIMIT_NPROC, (0, 0))
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+
+
+def _limits() -> None:
+    _apply_limits(2, 3)
+
+
+def live_limits() -> None:
+    """Live simulation: same as batch except RLIMIT_CPU soft 60 s / hard 61 s (D-062)."""
+    _apply_limits(60, 61)
 
 
 def _read_capped(

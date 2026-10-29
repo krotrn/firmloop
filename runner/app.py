@@ -1,14 +1,16 @@
+import json
 import logging
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from live import LiveConfig, LiveSession
 from native import (
     CompileFn,
     ExecFn,
@@ -56,9 +58,16 @@ def create_app(
     work_root: Path = Path("/work"),
     compile_fn: CompileFn = compile_sources,
     exec_fn: ExecFn = run_case,
+    live_config: LiveConfig | None = None,
 ) -> FastAPI:
     version = gxx_version()
     app = FastAPI()
+    live_cfg = live_config or (
+        LiveConfig()
+        if compile_fn is compile_sources
+        else LiveConfig(compile_fn=lambda d, t, _cancel: compile_fn(d, t))
+    )
+    live_busy = False
     tester = NativeTester(work_root, compile_fn, exec_fn)
 
     @app.exception_handler(RequestValidationError)
@@ -83,6 +92,49 @@ def create_app(
         except Exception:
             logger.exception("native test failed unexpectedly")
             return _error(500, "INTERNAL", "Internal runner error.")
+
+    @app.websocket("/sim/live")
+    async def sim_live(ws: WebSocket) -> None:
+        nonlocal live_busy
+        await ws.accept()
+        if live_busy:  # one live session at a time (D-062); the batch endpoint is unaffected
+            await ws.send_json(
+                {
+                    "type": "error",
+                    "code": "DEVICE_BUSY",
+                    "message": "Another live session is active.",
+                }
+            )
+            await ws.close(code=1013)
+            return
+        live_busy = True
+        session = LiveSession(ws.send_json, live_cfg, work_root)
+        try:
+            while True:
+                text = await ws.receive_text()
+                try:
+                    data = json.loads(text)
+                except ValueError:
+                    await ws.send_json(
+                        {"type": "error", "code": "VALIDATION", "message": "Message is not JSON."}
+                    )
+                    continue
+                if await session.handle(data):
+                    await ws.close()
+                    return
+        except WebSocketDisconnect:
+            pass
+        except Exception:
+            logger.exception("live session failed")
+            try:
+                await ws.close(code=1011)
+            except Exception:
+                logger.debug("close after failure failed", exc_info=True)
+        finally:
+            try:
+                await session.close()
+            finally:
+                live_busy = False
 
     return app
 

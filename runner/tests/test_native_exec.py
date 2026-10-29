@@ -274,3 +274,33 @@ def test_compile_log_lines_capped_at_500_chars(tmp_path: Path) -> None:
     first, second = log.splitlines()
     assert len(first) == 500
     assert second == "short"
+
+
+def test_compile_cancel_kills_whole_process_group(tmp_path: Path, fake_gxx) -> None:
+    import threading
+
+    pidfile = tmp_path / "grandchild2.pid"
+    fake_gxx(f"sleep 60 &\necho $! > {pidfile}\nwait")
+    cancel = threading.Event()
+    threading.Timer(0.5, cancel.set).start()
+    start = time.monotonic()
+
+    with pytest.raises(native.CompileCancelledError):
+        compile_sources(_workdir(tmp_path), 30.0, cancel)
+
+    assert time.monotonic() - start < 10
+    assert _gone(int(pidfile.read_text()))
+
+
+def test_compile_already_cancelled_does_not_start_g_plus_plus(tmp_path: Path, fake_gxx) -> None:
+    import threading
+
+    marker = tmp_path / "ran"
+    fake_gxx(f"touch {marker}")
+    cancel = threading.Event()
+    cancel.set()
+
+    with pytest.raises(native.CompileCancelledError):
+        compile_sources(_workdir(tmp_path), 10.0, cancel)
+
+    assert not marker.exists()

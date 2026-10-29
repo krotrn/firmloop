@@ -25,7 +25,7 @@ RUN mkdir -p /opt/harness \
     done \
     && chmod -R a+rX /opt/harness /opt/firmloop
 
-COPY app.py native.py ./
+COPY app.py native.py live.py ./
 
 RUN groupadd --gid 10001 runner \
     && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin runner
