@@ -8,11 +8,12 @@ TASKS ?=
 # Source is bind-mounted over /app; dependencies stay in anonymous volumes seeded from the image.
 # Frontend calls node_modules/.bin tools directly (same commands as the package.json scripts) because
 # the corepack pnpm cache lives under /root and is unreadable to the host user.
-# Runs as the host user with HOME and tool caches in /tmp so nothing lands in the host tree.
+# Runs as the host user with HOME and tool caches in /tmp so nothing lands in the host tree; the
+# mkdir pre-creates the anonymous-volume mountpoints so Docker does not create them root-owned.
 HOST_USER := $(shell id -u):$(shell id -g)
-BACKEND_RUN := docker compose run --rm --user $(HOST_USER) -v $(CURDIR)/backend:/app -v /app/.venv \
+BACKEND_RUN := mkdir -p backend/.venv && docker compose run --rm --user $(HOST_USER) -v $(CURDIR)/backend:/app -v /app/.venv \
 	-e HOME=/tmp -e UV_NO_SYNC=1 -e UV_CACHE_DIR=/tmp/uv -e RUFF_CACHE_DIR=/tmp/ruff backend
-FRONTEND_RUN := docker compose run --rm --user $(HOST_USER) -v $(CURDIR)/frontend:/app -v /app/node_modules -v /app/.next \
+FRONTEND_RUN := mkdir -p frontend/node_modules frontend/.next && docker compose run --rm --user $(HOST_USER) -v $(CURDIR)/frontend:/app -v /app/node_modules -v /app/.next \
 	-e HOME=/tmp -e XDG_CACHE_HOME=/tmp/cache -e COREPACK_HOME=/tmp/corepack frontend
 
 .DEFAULT_GOAL := help
