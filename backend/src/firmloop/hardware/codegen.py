@@ -1,4 +1,4 @@
-"""Generate ``channels.generated.cpp`` / ``drivers.generated.cpp`` (ARCHITECTURE section 4.5)."""
+"""Generate ``channels.generated.cpp`` / ``drivers.generated.cpp``."""
 
 from firmloop.hardware.manifest import Channel, ChannelType, Kind
 from firmloop.hardware.registry import Registry

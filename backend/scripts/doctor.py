@@ -1,4 +1,4 @@
-"""FirmLoop environment doctor (task 0.8). Run from the repo root via `make doctor`."""
+"""FirmLoop environment doctor. Run from the repo root via `make doctor`."""
 
 from __future__ import annotations
 
@@ -206,8 +206,8 @@ def check_llm(env: dict[str, str]) -> CheckResult:
     return CheckResult(
         "WARN",
         "llm",
-        f"provider {provider} configured; test call skipped until task 4.3 (LLM layer)",
-        "No action needed: the tiny LLM test call is added in task 4.3",
+        f"provider {provider} configured; test call skipped until the LLM layer exists",
+        "No action needed: the tiny LLM test call is added with the LLM layer",
     )
 
 

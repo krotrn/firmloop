@@ -1,6 +1,6 @@
 #pragma once
-// FirmLoop public API (ARCHITECTURE 5.1). This header is a contract: changing it requires
-// bumping FL_LIB_VERSION (and library.properties) and a DECISIONS entry.
+// FirmLoop public API. This header is a contract: changing it requires bumping
+// FL_LIB_VERSION (and library.properties).
 #include <stdint.h>
 #include <stdio.h>     // snprintf only
 #include <string.h>    // strcmp, strncpy only

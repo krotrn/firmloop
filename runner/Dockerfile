@@ -12,8 +12,8 @@ COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never UV_PROJECT_ENVIRONMENT=/opt/runner/.venv \
     uv sync --frozen --no-dev --python /usr/bin/python3
 
-# Harness objects baked at build time (ARCHITECTURE 8.2). Headers stay at /opt/firmloop/src so the
-# runtime compile of generated code uses the same headers as the baked .o files (D-061).
+# Harness objects baked at build time. Headers stay at /opt/firmloop/src so the
+# runtime compile of generated code uses the same headers as the baked .o files.
 COPY --from=firmware lib/FirmLoop/src/ /opt/firmloop/src/
 COPY --from=firmware native/fake_hal.h native/fake_hal.cpp native/harness_main.cpp /opt/harness-src/
 RUN mkdir -p /opt/harness \

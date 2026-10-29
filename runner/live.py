@@ -1,7 +1,4 @@
-"""WS /sim/live: a virtual device backed by the native harness in live mode.
-
-See docs/ARCHITECTURE.md 8.4, docs/API.md 5.1 and docs/DECISIONS.md D-062.
-"""
+"""WS /sim/live: a virtual device backed by the native harness in live mode."""
 
 import asyncio
 import contextlib
@@ -49,7 +46,7 @@ TICK_MS = 50
 TICK_S = 0.05
 WATCHDOG_S = 0.5
 MAX_LIFETIME_S = 30 * 60.0
-MAX_GIVEN = 12  # board limit (ARCHITECTURE 5.3)
+MAX_GIVEN = 12  # same limit as the board
 MAX_OVERRIDE_MS = 24 * 60 * 60 * 1000
 MAX_ABS_VALUE = 1e6
 READ_LIMIT = 64 * 1024

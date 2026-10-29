@@ -1,5 +1,5 @@
 #pragma once
-// Extern declarations filled by generated code (ARCHITECTURE 4.5). Not for user code.
+// Extern declarations filled by generated code. Not for user code.
 #include <stdint.h>
 
 namespace fl {
@@ -26,7 +26,7 @@ extern const char* const FW_ID;
 extern Driver* const DRIVERS[];     // ESP32 only
 extern const uint8_t DRIVER_COUNT;  // ESP32 only
 
-// ESP32 runtime entry points, called from the sketch template (ARCHITECTURE 5.2).
+// ESP32 runtime entry points, called from the sketch template.
 void runtime_begin();                    // setup(): Serial, drivers, RTC test block, user_setup()
 void runtime_service(uint32_t now_ms);   // loop(): poll, serial, tick, apply, telemetry
 

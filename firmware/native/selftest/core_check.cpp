@@ -260,7 +260,7 @@ static void test_errors_and_semantics() {
   Core core;
   core.init();
   core.setNow(100);
-  // same semantics as the native fake HAL (D-060)
+  // same semantics as the native fake HAL
   CHECK(core.readFloat("tmp") == 0.0f);
   CHECK(core.readInt("temp") == 25);
   CHECK(core.readBool("light") == true);

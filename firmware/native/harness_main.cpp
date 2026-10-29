@@ -1,4 +1,4 @@
-// Native test harness (ARCHITECTURE 6.4, 8.3, 8.4).
+// Native test harness (batch scripts and live mode).
 //
 // Batch mode:  sim < script   -> parse script, warm up, enter seccomp strict, run, print snapshots.
 // Live mode:   sim --live     -> same, but command lines (SET / RUN / END) are read one at a time

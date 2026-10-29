@@ -154,7 +154,7 @@ def test_llm_fail_bad_provider_and_missing_key() -> None:
 
 def test_llm_configured_warns_test_call_skipped() -> None:
     r = doctor.check_llm({"LLM_PROVIDER": "gemini", "GEMINI_API_KEY": "k"})
-    assert r.status == "WARN" and "skipped until task 4.3" in r.detail
+    assert r.status == "WARN" and "skipped until the LLM layer exists" in r.detail
     assert isinstance(r.fix, str) and r.fix.strip()
     assert doctor.check_llm({"LLM_PROVIDER": "ollama", "OLLAMA_BASE_URL": "http://x"}).status == (
         "WARN"
@@ -196,7 +196,7 @@ def test_exit_code(capsys: pytest.CaptureFixture[str]) -> None:
     assert "FAIL  n  d" in out
 
 
-# ---- fix round 1 ----
+# ---- env parsing, fixes and robustness ----
 def test_parse_env_export_inline_comments_and_equals() -> None:
     text = (
         "export A=1\n"
@@ -281,7 +281,7 @@ def test_secret_never_printed() -> None:
         assert "sk-test-secret" not in doctor.format_result(r)
 
 
-# ---- fix round 2 ----
+# ---- comment-only values and failing checks ----
 def test_parse_env_value_starting_with_hash_is_comment() -> None:
     env = doctor.parse_env("A= # note\nB=#x\nC=   \n")
     assert env == {"A": "", "B": "", "C": ""}

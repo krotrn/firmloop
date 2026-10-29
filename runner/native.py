@@ -1,7 +1,4 @@
-"""POST /native/test: compile generated code against the baked harness and run each case.
-
-See docs/ARCHITECTURE.md section 8.2 (compile), 8.3 (execute, classification) and docs/API.md 5.1.
-"""
+"""POST /native/test: compile generated code against the baked harness and run each case."""
 
 import json
 import logging
@@ -170,7 +167,7 @@ def parse_stdout(raw: bytes) -> list[dict[str, Any]]:
 
 
 def classify(returncode: int, wall_timeout: bool, lines: list[dict[str, Any]]) -> CaseStatus:
-    """ARCHITECTURE 8.3 table; signals are looked at first."""
+    """Classify a finished case; signals are looked at first."""
     done = any(line.get("done") for line in lines)
     if wall_timeout or returncode == -signal.SIGXCPU:
         return "timeout"
@@ -270,7 +267,7 @@ def _apply_limits(cpu_soft: int, cpu_hard: int) -> None:
     # Runs in the forked child before exec, in a process that has threads: it must not import
     # modules or allocate beyond the setrlimit calls (everything it needs is bound at module
     # level), or it can deadlock on locks held by other threads at fork time.
-    # soft -> SIGXCPU (timeout); hard is a backstop (D-058). CORE 0: no core dumps (D-061).
+    # soft -> SIGXCPU (timeout); hard is a backstop. CORE 0: no core dumps.
     resource.setrlimit(resource.RLIMIT_CPU, (cpu_soft, cpu_hard))
     resource.setrlimit(resource.RLIMIT_AS, (128 << 20, 128 << 20))
     resource.setrlimit(resource.RLIMIT_FSIZE, (1 << 20, 1 << 20))
@@ -284,7 +281,7 @@ def _limits() -> None:
 
 
 def live_limits() -> None:
-    """Live simulation: same as batch except RLIMIT_CPU soft 60 s / hard 61 s (D-062)."""
+    """Live simulation: same as batch except RLIMIT_CPU soft 60 s / hard 61 s."""
     _apply_limits(60, 61)
 
 
@@ -378,7 +375,7 @@ def run_case(
     status = classify(proc.returncode, wall_timeout, lines)
     stderr_text, mode = trim_stderr(bytes(err))
     if out_over.is_set() and not wall_timeout:
-        # output limit: killed by us, so the signal says nothing about the program (D-061)
+        # output limit: killed by us, so the signal says nothing about the program
         status = "crashed"
         stderr_text = ("output limit exceeded\n" + stderr_text)[:STDERR_KEEP]
     logger.debug("case %s status=%s seccomp=%s", case_id, status, mode)

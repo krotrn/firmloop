@@ -1,4 +1,4 @@
-// Hand-written fixture matching ARCHITECTURE 4.3 / 4.5 exactly (sorted by id, FW_ID "native").
+// Hand-written fixture matching the codegen output exactly (sorted by id, FW_ID "native").
 // The real file is produced by backend/src/firmloop/hardware/codegen.py; this one exists so the
 // native self-tests do not depend on the backend.
 #include "FirmLoopInternal.h"

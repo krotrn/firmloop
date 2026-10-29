@@ -18,7 +18,7 @@ dev = [
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
-# starlette 1.x nags to use httpx2 for TestClient; httpx2 is not in TECH_STACK (not ours to fix)
+# starlette 1.x nags to use httpx2 for TestClient; httpx2 is not an approved dependency (not ours to fix)
 filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]
 
 [tool.ruff]

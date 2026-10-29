@@ -43,7 +43,7 @@ RUN set -eu; \
     mkdir -p /opt/arduino-user; \
     chmod -R a+rX /opt/arduino15 /opt/arduino-user
 
-# Manifest libraries, exact versions (D-059). Separate layer after the core so editing this list
+# Manifest libraries, exact versions. Separate layer after the core so editing this list
 # never re-downloads the toolchain. Keep in sync with hardware/*/manifest.yaml driver.libraries.
 RUN set -eu; \
     for i in 1 2 3; do \

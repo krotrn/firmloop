@@ -1,4 +1,4 @@
-// FirmLoop sketch template (ARCHITECTURE 4.5, 5.2). Everything lives in the FirmLoop library;
+// FirmLoop sketch template. Everything lives in the FirmLoop library;
 // user_logic.cpp, channels.generated.cpp and drivers.generated.cpp sit beside this file.
 #include <FirmLoop.h>
 #include <FirmLoopInternal.h>

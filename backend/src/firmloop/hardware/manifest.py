@@ -1,4 +1,4 @@
-"""Pydantic models for ``hardware/<id>/manifest.yaml`` (ARCHITECTURE section 4.2)."""
+"""Pydantic models for ``hardware/<id>/manifest.yaml``."""
 
 import math
 from typing import Literal, Self

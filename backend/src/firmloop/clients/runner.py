@@ -1,4 +1,4 @@
-"""Client for the runner service (docs/API.md 5.1)."""
+"""Client for the runner service."""
 
 from typing import Any, Literal
 

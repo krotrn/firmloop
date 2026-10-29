@@ -1,4 +1,4 @@
-// FirmLoop ESP32 runtime (ARCHITECTURE 5.2-5.4). Arduino-ESP32 only; the native build uses
+// FirmLoop ESP32 runtime. Arduino-ESP32 only; the native build uses
 // firmware/native/fake_hal.cpp instead. All protocol/table logic lives in fl_core.h (unit-tested
 // natively); this file only wires it to Serial, the RTC block, ESP.restart() and the drivers.
 #ifdef ARDUINO
@@ -120,7 +120,7 @@ bool readBool(const char* channel) { return g_core.readBool(channel); }
 void setBool(const char* channel, bool on) { g_core.setBool(channel, on); }
 void displayLine(uint8_t row, const char* text) { g_core.displayLine(row, text); }
 void displayClear() { g_core.displayClear(); }
-uint32_t now() { return g_core.rel(millis()); }  // ms since user_setup(), like native (D-063)
+uint32_t now() { return g_core.rel(millis()); }  // ms since user_setup(), like native
 
 // ---- driver API (Driver.h)
 void publishFloat(const char* channel, float v) { g_core.publish(channel, v, Type::Float); }
@@ -139,7 +139,7 @@ void runtime_begin() {
   g_core.setNow(now);
 
   // Test mode lives in RTC memory only for exactly one boot: consume the block here so a crash
-  // or brown-out during a test can never leave the board in test mode (D-006, D-063).
+  // or brown-out during a test can never leave the board in test mode.
   bool test = fl::rtcValid(g_rtc);
   fl::RtcBlock blk = g_rtc;
   fl::rtcClear(&g_rtc);

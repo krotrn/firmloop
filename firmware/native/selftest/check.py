@@ -1,9 +1,9 @@
-"""Native self-test driver (task 1.7/1.8). Run by run.sh inside the runner image.
+"""Native self-test driver. Run by run.sh inside the runner image.
 
 Usage: check.py <build_dir>   (build_dir already holds fake_hal.o and harness_main.o)
 
-For every case: compile logic/<name>.cpp + channels.generated.cpp with the ARCHITECTURE 8.2 flags,
-link statically, run with the 8.3 rlimits and classify the result, then check assertions.
+For every case: compile logic/<name>.cpp + channels.generated.cpp with the runner's compile flags,
+link statically, run with the runner's rlimits and classify the result, then check assertions.
 Prints PASS/FAIL per case; exit code 1 if any case fails.
 """
 import json
@@ -95,7 +95,7 @@ def classify(rc, lines, parsed_ok):
 
 
 def run(exe, script):
-    """Returns (status, snapshots, detail, seccomp_mode) classified per ARCHITECTURE 8.3."""
+    """Returns (status, snapshots, detail, seccomp_mode) classified like the runner does."""
     try:
         p = subprocess.run([exe], input=script, capture_output=True, text=True, timeout=5,
                            preexec_fn=limits)

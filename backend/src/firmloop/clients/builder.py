@@ -1,4 +1,4 @@
-"""Client for the builder service (docs/API.md 5.2)."""
+"""Client for the builder service."""
 
 import httpx
 from pydantic import BaseModel

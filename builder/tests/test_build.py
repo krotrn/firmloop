@@ -293,7 +293,7 @@ def test_missing_cli_is_500(tmp_path, hardware_dir, template_dir):
     assert os.listdir(tmp_path / "build") == []
 
 
-# ---- review fixes ---------------------------------------------------------------------
+# ---- flash_args edge cases, validation, process cleanup ---------------------------------
 
 
 def test_parse_flash_args_valueless_flag():

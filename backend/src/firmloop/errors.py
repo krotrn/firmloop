@@ -1,4 +1,4 @@
-"""Application error type and the error codes of docs/API.md section 6."""
+"""Application error type and the API error codes."""
 
 from enum import StrEnum
 from typing import Any
@@ -48,7 +48,7 @@ class ErrorCode(StrEnum):
 
 
 class AppError(Exception):
-    """Error carrying an API.md section 6 code; mapped to the HTTP error shape in task 5.6."""
+    """Error carrying an API error code; mapped to the HTTP error shape by the API layer."""
 
     def __init__(
         self,

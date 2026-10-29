@@ -1,5 +1,5 @@
 #pragma once
-// Portable runtime core (ARCHITECTURE 5.2-5.4): channel table, serial command parsing and
+// Portable runtime core: channel table, serial command parsing and
 // handling, line guard, test-mode TTL, overrides, error rate limit, telemetry/ack/hello writers.
 // Pure C++17 with no Arduino dependency so the native self-tests can exercise it; FirmLoop.cpp
 // (ESP32 only) wires it to Serial, ESP.restart(), the RTC block and the drivers.
@@ -523,7 +523,7 @@ class Core {
     if (arg) snprintf(e.msg, sizeof e.msg, "%s(\"%s\")", fn, arg);
     else snprintf(e.msg, sizeof e.msg, "%s", fn);
   }
-  // Same contract as the native fake HAL (D-060): unknown id -> -1; wrong type/kind -> index with
+  // Same contract as the native fake HAL: unknown id -> -1; wrong type/kind -> index with
   // *mismatch set so the caller returns the channel's neutral value.
   int lookup(const char* ch, Type type, Kind kind, const char* fn, bool* mismatch) {
     *mismatch = false;

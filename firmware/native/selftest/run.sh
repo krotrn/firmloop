@@ -1,5 +1,5 @@
 #!/bin/sh
-# Firmware native self-tests (tasks 1.6-1.8). Runs inside the runner image:
+# Firmware native self-tests. Runs inside the runner image:
 #   docker compose run --rm --no-deps runner sh /repo/firmware/native/selftest/run.sh
 # Compiles at test time into a fresh dir under /work (tmpfs, exec); the container is read-only.
 set -eu

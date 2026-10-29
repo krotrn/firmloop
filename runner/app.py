@@ -97,7 +97,7 @@ def create_app(
     async def sim_live(ws: WebSocket) -> None:
         nonlocal live_busy
         await ws.accept()
-        if live_busy:  # one live session at a time (D-062); the batch endpoint is unaffected
+        if live_busy:  # one live session at a time; the batch endpoint is unaffected
             await ws.send_json(
                 {
                     "type": "error",

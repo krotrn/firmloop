@@ -1,6 +1,6 @@
 #pragma once
 // Shared by the ESP32 core (fl_core.h) and the native fake HAL so both accept the same sensor
-// values and print byte-identical `s` / `a` / `d` state fragments (D-063).
+// values and print byte-identical `s` / `a` / `d` state fragments.
 #include <math.h>
 #include <stdint.h>
 

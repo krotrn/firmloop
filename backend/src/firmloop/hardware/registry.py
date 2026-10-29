@@ -10,7 +10,7 @@ from firmloop.hardware.manifest import Channel, Manifest
 MANIFEST_FILE = "manifest.yaml"
 NOTES_FILE = "ai_notes.md"
 DRIVER_HEADER = "driver.h"
-MAX_CHANNELS = 32  # ARCHITECTURE section 4.5
+MAX_CHANNELS = 32  # fixed-size channel table in the firmware
 
 
 class RegistryError(Exception):

@@ -1,7 +1,4 @@
-"""POST /build: assemble the sketch, run arduino-cli, return the flash bundle.
-
-See docs/ARCHITECTURE.md section 4.5 (layout) and 9 (builder), docs/API.md 5.2 and D-045/D-064.
-"""
+"""POST /build: assemble the sketch, run arduino-cli, return the flash bundle."""
 
 import asyncio
 import base64
