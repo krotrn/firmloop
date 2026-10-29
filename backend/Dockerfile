@@ -20,6 +20,14 @@ WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv UV_LINK_MODE=copy uv sync --no-install-project
 
+# pyright runs on node; fetch it once here (world-readable) instead of on every `make lint`.
+# Pinned: resolving "latest" breaks whenever nodejs.org lists a version nodeenv can't parse.
+ENV PYRIGHT_PYTHON_CACHE_DIR=/opt/pyright \
+    PYRIGHT_PYTHON_NODE_VERSION=24.22.2
+RUN pyright --version && chmod -R a+rX /opt/pyright
+# on PATH so pyright finds node as a global binary (its nodeenv check retries an install otherwise)
+ENV PATH="/opt/pyright/pyright-python/nodeenv/bin:$PATH"
+
 COPY src ./src
 COPY tests ./tests
 COPY scripts ./scripts
