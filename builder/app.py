@@ -5,8 +5,13 @@ import logging
 import subprocess
 from collections.abc import Callable
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+
+from build_service import Builder, BuildError, BuildRequest, BuildResponse
 
 logger = logging.getLogger(__name__)
 
@@ -71,9 +76,39 @@ def detect_versions(timeout: float = CMD_TIMEOUT_S) -> ToolVersions:
     )
 
 
-def create_app(versions: Callable[[], ToolVersions] = detect_versions) -> FastAPI:
+def _error(status: int, code: str, message: str, details: dict[str, object] | None = None):
+    body = {"error": {"code": code, "message": message, "details": details or {}}}
+    return JSONResponse(status_code=status, content=body)
+
+
+def create_app(
+    versions: Callable[[], ToolVersions] = detect_versions, builder: Builder | None = None
+) -> FastAPI:
     detected = versions()
     app = FastAPI(title="FirmLoop builder")
+    service = builder or Builder()
+
+    @app.exception_handler(RequestValidationError)
+    async def _validation(_: Request, exc: RequestValidationError) -> JSONResponse:
+        # drop "input" and "ctx": they may echo the submitted source code
+        errors = [
+            {"loc": list(e["loc"]), "msg": e["msg"], "type": e["type"]}
+            for e in jsonable_encoder(exc.errors())
+        ]
+        return _error(422, "VALIDATION", "Request body is invalid.", {"errors": errors})
+
+    @app.exception_handler(BuildError)
+    async def _build_error(_: Request, exc: BuildError) -> JSONResponse:
+        return _error(exc.http_status, exc.code, exc.message)
+
+    @app.exception_handler(Exception)
+    async def _unexpected(_: Request, exc: Exception) -> JSONResponse:
+        logger.error("unexpected error", exc_info=exc)
+        return _error(500, "INTERNAL", "Internal builder error.")
+
+    @app.post("/build")
+    async def build(request: BuildRequest) -> BuildResponse:
+        return await service.build(request)
 
     @app.get("/health")
     def health() -> dict[str, object]:

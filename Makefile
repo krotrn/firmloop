@@ -17,7 +17,7 @@ FRONTEND_RUN := mkdir -p frontend/node_modules frontend/.next && docker compose 
 	-e HOME=/tmp -e XDG_CACHE_HOME=/tmp/cache -e COREPACK_HOME=/tmp/corepack frontend
 
 .DEFAULT_GOAL := help
-.PHONY: help build up up-ollama down logs doctor test test-backend test-firmware test-frontend lint schemas bench bench-validate db-reset migrate
+.PHONY: help build up up-ollama down logs doctor test test-backend test-builder test-firmware test-frontend lint schemas bench bench-validate db-reset migrate
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  %-15s %s\n", $$1, $$2}'
@@ -46,6 +46,12 @@ test: test-backend test-firmware test-frontend ## Run all tests
 
 test-backend: ## Backend pytest inside the backend container
 	$(BACKEND_RUN) uv run pytest -q -p no:cacheprovider
+
+# Builder-marked integration tests (slow, real arduino-cli). The builder is started explicitly here
+# instead of being a backend dependency, so `make test-backend` and `make up` stay fast (D-064).
+test-builder: ## Builder integration tests (starts the builder service, ESP32 compile)
+	docker compose up -d --wait builder
+	$(BACKEND_RUN) uv run pytest -q -p no:cacheprovider -m builder tests/integration/test_builder_build.py
 
 # The runner image bakes firmware/lib/FirmLoop/src and firmware/native; after changing them run
 # `docker compose build runner` first, or the image tests stale headers and harness objects.

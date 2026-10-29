@@ -62,5 +62,7 @@ venv = ".venv"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m 'not builder'"
+markers = ["builder: needs the builder container (make test-builder)"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"

@@ -64,7 +64,7 @@ WORKDIR /opt/builder
 COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never UV_PROJECT_ENVIRONMENT=/opt/builder/.venv \
     uv sync --frozen --no-dev
-COPY app.py ./
+COPY app.py build_service.py ./
 
 EXPOSE 8102
 CMD ["/opt/builder/.venv/bin/uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8102"]
