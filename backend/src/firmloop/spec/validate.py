@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict
 from firmloop.hardware.manifest import Channel
 from firmloop.hardware.registry import Registry
 from firmloop.spec import models as m
+from firmloop.spec.script import SCRIPT_TAIL_MS, scenario_end_ms
 
 SpecErrorCode = Literal[
     "count",
@@ -36,7 +37,6 @@ SpecErrorCode = Literal[
 ]
 
 ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")  # ids appear in test ids such as "b:r1:lo"
-SCRIPT_TAIL_MS = 200  # final RUN = last step + max(within, hold) + 200 ms harness tail
 NUMERIC_OPS = ("gt", "gte", "lt", "lte")
 
 
@@ -187,20 +187,24 @@ class _Checker:
             )
 
     def conflicts(self, rules: list[m.Rule]) -> None:
+        # an actuator held by a rule's 'otherwise' belongs to that rule alone
         owners: dict[str, list[str]] = {}
+        held: set[str] = set()
         for rule in rules:
-            if rule.otherwise is None:
-                continue
-            for name in dict.fromkeys([*rule.then, *rule.otherwise]):
+            names = [*rule.then, *(rule.otherwise or {})]
+            for name in dict.fromkeys(names):
                 owners.setdefault(name, []).append(rule.id)
+            if rule.otherwise is not None:
+                held.update(names)
         for name, ids in owners.items():
-            if len(ids) > 1:
+            if len(ids) > 1 and name in held:
                 quoted = ", ".join(f"'{i}'" for i in ids)
                 self.err(
                     "conflicting_rules",
                     "rules",
-                    f"rules {quoted} all set 'otherwise' for actuator '{name}', so they would "
-                    "fight over it and their generated tests would contradict each other. "
+                    f"rules {quoted} all drive actuator '{name}' and at least one sets "
+                    "'otherwise' for it, so they would fight over it and their generated tests "
+                    "would contradict each other. "
                     'Merge them into one rule with combine "any" (on when any condition holds) '
                     'or "all" (on only when all hold).',
                 )
@@ -212,7 +216,6 @@ class _Checker:
         if not 1 <= len(sc.steps) <= m.MAX_STEPS:
             self.err("count", f"{path}.steps", f"a scenario needs 1 to {m.MAX_STEPS} steps")
         last_at = -1
-        end_ms = 0
         for k, step in enumerate(sc.steps):
             here = f"{path}.steps[{k}]"
             if step.at_ms <= last_at:
@@ -225,14 +228,12 @@ class _Checker:
             self.sensor_values(step.set, f"{here}.set")
             for n, exp in enumerate(step.expect):
                 self.expectation(exp, f"{here}.expect[{n}]")
-                end_ms = max(end_ms, step.at_ms + max(exp.within_ms, exp.hold_ms))
-            end_ms = max(end_ms, step.at_ms)
-        total = end_ms + SCRIPT_TAIL_MS
+        total = scenario_end_ms(sc)
         if total > m.MAX_SCENARIO_MS:
             self.err(
                 "duration",
                 path,
-                f"scenario runs {total} ms (last step plus its within/hold plus "
+                f"scenario runs {total} ms (last step plus its within + hold plus "
                 f"{SCRIPT_TAIL_MS} ms); the maximum is {m.MAX_SCENARIO_MS} ms",
             )
 

@@ -185,6 +185,18 @@ CASES: list[tuple[str, Mutate, str, str, str]] = [
         "greater than",
     ),
     (
+        "within and hold both count toward duration",
+        lambda d: d["scenarios"][0]["steps"][1].update(
+            at_ms=119_000,
+            expect=[
+                {"channel": "fan", "op": "eq", "value": True, "within_ms": 500, "hold_ms": 500}
+            ],
+        ),
+        "duration",
+        "scenarios[0]",
+        "maximum is 120000",
+    ),
+    (
         "duration too long",
         lambda d: d["scenarios"][0]["steps"][1].update(at_ms=119_900),
         "duration",
@@ -374,6 +386,7 @@ def test_conflict_message_hint(registry: Registry) -> None:
 
 def test_rules_without_otherwise_may_share_an_actuator(registry: Registry) -> None:
     def mutate(d: dict[str, Any]) -> None:
+        d["rules"][0]["otherwise"] = None
         d["rules"].append(rule2({"then": {"fan": True}, "otherwise": None}))
 
     assert errors_for(mutate, registry) == []
@@ -462,3 +475,11 @@ def test_display_contains_still_needs_text(registry: Registry) -> None:
                 e["value"] = ""
 
     assert [e.code for e in errors_for(mutate, registry)] != []
+
+
+def test_rule_without_otherwise_conflicts_with_one_that_has_it(registry: Registry) -> None:
+    errors = errors_for(
+        lambda d: d["rules"].append(rule2({"then": {"fan": True}, "otherwise": None})), registry
+    )
+    (err,) = [e for e in errors if e.code == "conflicting_rules"]
+    assert "'r1', 'r2'" in err.message
