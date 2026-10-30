@@ -69,9 +69,9 @@ lint: ## ruff check/format, pyright, eslint, tsc --noEmit
 	$(FRONTEND_RUN) node_modules/.bin/eslint
 	$(FRONTEND_RUN) node_modules/.bin/tsc --noEmit --incremental false
 
-schemas: ## Export OpenAPI + JSON Schemas and regenerate frontend types (not implemented yet)
-	@echo "schemas: not implemented yet"
-	@exit 1
+schemas: ## Export OpenAPI + JSON Schemas to shared/schemas
+	mkdir -p backend/.venv shared/schemas && docker compose run --rm --user $(HOST_USER) -v $(CURDIR)/backend:/app -v /app/.venv -v $(CURDIR)/shared:/shared -v $(CURDIR)/.env.example:/.env.example:ro \
+		-e HOME=/tmp -e UV_NO_SYNC=1 -e UV_CACHE_DIR=/tmp/uv backend uv run python scripts/export_schemas.py /shared/schemas
 
 try-understand: ## Understand step on real requests: make try-understand [PROVIDER=ollama] [MODEL=qwen2.5:3b] [DELAY=20] [REQ='"turn the fan on above 30"'] (default: sample file)
 	$(BACKEND_RUN) uv run python scripts/try_understand.py $(if $(PROVIDER),--provider $(PROVIDER)) $(if $(MODEL),--model $(MODEL)) $(if $(DELAY),--delay $(DELAY)) $(if $(REQ),$(REQ),--file scripts/understand_samples.txt)
