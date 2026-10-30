@@ -3,7 +3,7 @@
 import asyncio
 import contextlib
 import logging
-from collections.abc import AsyncGenerator, AsyncIterator, Iterator
+from collections.abc import AsyncGenerator, Iterator
 from typing import Literal, Protocol
 
 from firmloop.clients.runner import (
@@ -18,13 +18,14 @@ from firmloop.clients.runner import (
     RunnerHealth,
 )
 from firmloop.db.models import Version
+from firmloop.db.repo import now_iso
 from firmloop.errors import AppError, ErrorCode
 from firmloop.hardware.codegen import generate_channels_cpp
 from firmloop.hardware.registry import Registry
 from firmloop.spec.evaluate import Snapshot
 from firmloop.spec.models import TestCase, Value
 from firmloop.spec.script import scenario_end_ms
-from firmloop.targets.base import DeviceStatus, Hello, TelemetryEvent
+from firmloop.targets.base import Hello, TargetStatus, TelemetryEvent
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +98,7 @@ class VirtualTarget:
         self._sim: LiveSim | None = None
         self._pump_task: asyncio.Task[None] | None = None
         self._loaded = False
+        self._last_seen: str | None = None
         self._queues: set[asyncio.Queue[_Item]] = set()
         self._lock = asyncio.Lock()
         self._connect_lock = asyncio.Lock()
@@ -120,6 +122,7 @@ class VirtualTarget:
                     message = await sim.recv(PUMP_POLL_S)
                 except TimeoutError:
                     continue
+                self._last_seen = now_iso()
                 if isinstance(message, LiveLoaded):
                     self._loaded = message.ok
                 elif isinstance(message, LiveError):
@@ -233,7 +236,7 @@ class VirtualTarget:
                 )
 
     @contextlib.asynccontextmanager
-    async def _command_lock(self, timeout_s: float | None = None) -> AsyncIterator[None]:
+    async def _command_lock(self, timeout_s: float | None = None) -> AsyncGenerator[None]:
         """Hold the command lock; with a timeout, give up with DEVICE_BUSY instead of waiting."""
         try:
             async with asyncio.timeout(timeout_s):
@@ -253,17 +256,23 @@ class VirtualTarget:
             raise AppError(ErrorCode.NO_HELLO, "No program is loaded in the simulator.")
         return Hello.model_validate(message.model_dump(exclude={"type"}))
 
-    async def status(self) -> DeviceStatus:
+    async def status(self) -> TargetStatus:
         try:
             if self._sim is None:
                 health = await self._runner.health()
-                return DeviceStatus(connected=health.ok)
+                return TargetStatus(connected=health.ok, last_seen=self._last_seen)
             message = await self._ask_hello(lock_timeout_s=self._status_lock_timeout_s)
         except AppError as exc:
             if exc.code == ErrorCode.DEVICE_BUSY:
                 raise
-            return DeviceStatus(connected=False)
-        return DeviceStatus(connected=True, fw=message.fw, proto=message.proto, lib=message.lib)
+            return TargetStatus(connected=False, last_seen=self._last_seen)
+        return TargetStatus(
+            connected=True,
+            fw=message.fw,
+            proto=message.proto,
+            lib=message.lib,
+            last_seen=self._last_seen,
+        )
 
     async def run_test_case(self, case: TestCase, token: str) -> list[Snapshot]:
         scenario = case.scenario

@@ -3,10 +3,11 @@
 import re
 from collections.abc import Sequence
 
-from firmloop.agent.templates import Answer, build_understand_prompts
+from firmloop.agent.templates import build_understand_prompts
 from firmloop.hardware.registry import Registry
 from firmloop.llm.base import Message
 from firmloop.llm.structured import CallContext, SchemaFeedback, StructuredCaller
+from firmloop.records import Answer
 from firmloop.spec import models as m
 from firmloop.spec.validate import SpecError, validate_followup, validate_spec
 from firmloop.spec.wire import (

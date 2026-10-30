@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from firmloop.clients.runner import CaseResult
 from firmloop.hardware.registry import Registry
+from firmloop.records import Failure, TestResult
 from firmloop.spec import models as m
 
 # A number never starts inside a word or another number; "-" is a minus sign only when it does
@@ -31,26 +32,6 @@ class Snapshot(BaseModel):
     a: dict[str, float | int] = Field(default_factory=dict)
     d: list[str] = Field(default_factory=list)
     err: list[str] = Field(default_factory=list)
-
-
-class Failure(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    step_index: int
-    expectation: m.Expectation
-    message: str
-    observed_summary: str
-
-
-class TestResult(BaseModel):
-    __test__ = False  # not a pytest class
-
-    model_config = ConfigDict(extra="forbid")
-
-    test_id: str
-    passed: bool
-    failures: list[Failure] = Field(default_factory=list[Failure])
-    error: str | None = None
 
 
 def _fmt(value: object) -> str:

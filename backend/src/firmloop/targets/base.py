@@ -22,12 +22,13 @@ class Hello(BaseModel):
     channels: list[str]
 
 
-class DeviceStatus(BaseModel):
+class TargetStatus(BaseModel):
     connected: bool
     port: str | None = None
     fw: str | None = None
     proto: int | None = None
     lib: str | None = None
+    last_seen: str | None = None  # time of the target's last reply, None before the first
 
 
 class TelemetryEvent(BaseModel):
@@ -41,7 +42,7 @@ class TelemetryEvent(BaseModel):
 class DeviceTarget(Protocol):
     kind: Literal["real", "virtual"]
 
-    async def status(self) -> DeviceStatus:
+    async def status(self) -> TargetStatus:
         """Whether the target is reachable and what it reports. Never raises for a missing
         device: it returns `connected=False`."""
         ...

@@ -11,9 +11,9 @@ from functools import lru_cache
 from pathlib import Path
 
 import jinja2
-from pydantic import BaseModel, ConfigDict
 
 from firmloop.hardware.registry import Registry
+from firmloop.records import Answer
 from firmloop.spec import models as m
 
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
@@ -62,15 +62,6 @@ def render_prompt(name: str, **variables: object) -> str:
         if bool(variables["followup"]) != has_base:
             raise ValueError("followup must be true exactly when base_spec_json is set")
     return environment().get_template(f"{name}.md").render(**variables)
-
-
-class Answer(BaseModel):
-    """A clarifying question the model asked and the user's reply."""
-
-    model_config = ConfigDict(frozen=True)
-
-    question: str
-    answer: str
 
 
 def load_api_header(firmware_dir: Path) -> str:

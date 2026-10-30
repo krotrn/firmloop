@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from tree_sitter import Language, Node, Parser, Tree
 
 from firmloop.hardware.registry import Registry
+from firmloop.records import Violation
 
 MAX_LINES = 300
 MAX_BYTES = 12_000
@@ -26,12 +27,6 @@ MAX_DEPTH = 120
 
 _PARSER = Parser(Language(tree_sitter_cpp.language()))
 _PARSER_LOCK = threading.Lock()  # a tree-sitter Parser must not be shared between threads
-
-
-class Violation(BaseModel):
-    line: int
-    rule: str
-    message: str
 
 
 class SafetyReport(BaseModel):

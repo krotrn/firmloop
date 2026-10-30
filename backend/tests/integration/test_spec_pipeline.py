@@ -8,8 +8,9 @@ from firmloop.clients.runner import CaseIn, RunnerClient
 from firmloop.config import Settings
 from firmloop.hardware.codegen import generate_channels_cpp
 from firmloop.hardware.registry import Registry
+from firmloop.records import TestResult
 from firmloop.safety.checker import check
-from firmloop.spec.evaluate import TestResult, evaluate
+from firmloop.spec.evaluate import evaluate
 from firmloop.spec.models import Spec, TestCase
 from firmloop.spec.script import build_script
 from firmloop.spec.testgen import generate_tests

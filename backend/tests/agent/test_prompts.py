@@ -4,8 +4,9 @@ import re
 import jinja2
 import pytest
 
-from firmloop.agent.templates import Answer, build_understand_prompts, render_prompt, untrusted
+from firmloop.agent.templates import build_understand_prompts, render_prompt, untrusted
 from firmloop.hardware.registry import Registry
+from firmloop.records import Answer
 from firmloop.spec import models as m
 from firmloop.spec.validate import validate_spec
 from firmloop.spec.wire import (

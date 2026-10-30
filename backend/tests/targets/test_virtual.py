@@ -117,6 +117,17 @@ async def test_status(rig, registry: Registry) -> None:
     assert (await down.status()).connected is False
 
 
+async def test_status_reports_when_the_device_last_replied(rig) -> None:
+    target, _, _ = rig
+    assert (await target.status()).last_seen is None  # nothing has replied yet
+    await target.load(_version())
+    first = (await target.status()).last_seen
+    assert first is not None and first.endswith("Z")
+    await asyncio.sleep(0.01)
+    second = (await target.status()).last_seen
+    assert second is not None and second > first
+
+
 async def test_run_test_case_restarts_sets_and_leaves_test_mode(rig) -> None:
     target, conn, _ = rig
     await target.load(_version())

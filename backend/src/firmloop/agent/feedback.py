@@ -7,9 +7,9 @@ expectation in words), so it is reused rather than re-derived.
 
 import logging
 
+from firmloop.records import TestResult
 from firmloop.safety.checker import SafetyReport
 from firmloop.spec import models as m
-from firmloop.spec.evaluate import TestResult
 
 logger = logging.getLogger(__name__)
 

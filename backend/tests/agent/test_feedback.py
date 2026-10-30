@@ -10,9 +10,9 @@ from firmloop.agent.feedback import (
     failing_tests_feedback,
     safety_feedback,
 )
-from firmloop.safety.checker import SafetyReport, Violation
+from firmloop.records import Failure, TestResult, Violation
+from firmloop.safety.checker import SafetyReport
 from firmloop.spec import models as m
-from firmloop.spec.evaluate import Failure, TestResult
 
 
 def _case(

@@ -8,7 +8,7 @@ from firmloop.db.models import Run, Version
 from firmloop.errors import AppError, ErrorCode
 from firmloop.spec.evaluate import Snapshot
 from firmloop.spec.models import TestCase
-from firmloop.targets.base import DeviceStatus, Hello
+from firmloop.targets.base import Hello, TargetStatus
 
 TS = "2026-10-30T10:00:00.000Z"
 
@@ -31,8 +31,8 @@ class RecordingTarget:
         self.running_fw = version.id
         self.test_mode = False
 
-    async def status(self) -> DeviceStatus:
-        return DeviceStatus(connected=True)
+    async def status(self) -> TargetStatus:
+        return TargetStatus(connected=True)
 
     async def run_test_case(self, case: TestCase, token: str) -> list[Snapshot]:
         return []

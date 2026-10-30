@@ -5,9 +5,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
-from firmloop.safety.checker import Violation
+from firmloop.records import DeviceStatus, TestResult, Violation
 from firmloop.spec.diff import SpecDiff
-from firmloop.spec.evaluate import TestResult
 from firmloop.spec.models import Spec
 
 PROTO = 1
@@ -174,7 +173,7 @@ class RunFinishedEvent(_Event):
 
 class DeviceStatusEvent(_Event):
     type: Literal["device.status"] = "device.status"
-    status: JsonObject
+    status: DeviceStatus
 
 
 class DeviceReconcileEvent(_Event):

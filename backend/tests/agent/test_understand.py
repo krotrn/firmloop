@@ -5,11 +5,11 @@ from typing import Any, TypeVar
 import pytest
 from pydantic import BaseModel
 
-from firmloop.agent.templates import Answer
 from firmloop.agent.understand import MAX_TOKENS, TEMPERATURE, understand
 from firmloop.hardware.registry import Registry
 from firmloop.llm.base import Message
 from firmloop.llm.structured import CallContext, SchemaFeedback, StructuredCaller
+from firmloop.records import Answer
 from firmloop.spec import models as m
 from firmloop.spec.wire import (
     WireFollowupUnderstandResult,
