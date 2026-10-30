@@ -65,8 +65,20 @@ def test_lifespan_starts_the_orchestrator_and_releases_everything(
     upgrade_to_head(db_url)
 
     with TestClient(create_app()) as client:
-        assert client.get("/api/health").json() == {"ok": True}
-        assert client.app.state.orchestrator is not None  # type: ignore[attr-defined]  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
+        state = client.app.state  # type: ignore[attr-defined]  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue, reportUnknownVariableType]
+        for name in (
+            "engine",
+            "registry",
+            "env",
+            "runner",
+            "builder",
+            "virtual_target",
+            "orchestrator",
+            "event_bus",
+        ):
+            assert getattr(state, name) is not None, name  # pyright: ignore[reportUnknownArgumentType]
+        assert state.lib_version == "0.1.0"  # pyright: ignore[reportUnknownMemberType]
+        assert client.get("/api/hardware").status_code == 200
         assert [r.closed for r in StubRunner.instances] == [False]
 
     assert [r.closed for r in StubRunner.instances] == [True]
@@ -101,3 +113,31 @@ def test_startup_fails_when_the_hardware_cannot_load_and_disposes_the_engine(
 
     assert disposed_engines() == 1
     assert StubRunner.instances == []
+
+
+def test_started_app_serves_every_rest_area_and_the_error_shape(
+    disposed_engines: Callable[[], int], db_url: str
+) -> None:
+    upgrade_to_head(db_url)
+
+    with TestClient(create_app()) as client:
+        session = client.post("/api/sessions")
+        assert session.status_code == 201
+        session_id = session.json()["id"]
+        for path in (
+            "/api/health",
+            "/api/hardware",
+            "/api/sessions",
+            f"/api/sessions/{session_id}",
+            f"/api/sessions/{session_id}/runs",
+            f"/api/sessions/{session_id}/versions",
+            "/api/device",
+            "/api/settings",
+        ):
+            assert client.get(path).status_code == 200, path
+        for path in ("/api/runs/nope", "/api/versions/nope", "/api/sessions/nope"):
+            response = client.get(path)
+            assert response.status_code == 404, path
+            assert response.json()["error"]["code"] == "NOT_FOUND"
+            assert set(response.json()["error"]) == {"code", "message", "details"}
+        assert client.get("/api/health").json()["services"]["device"] == "down"

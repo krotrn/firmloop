@@ -9,8 +9,7 @@ from firmloop.agent import phases
 from firmloop.errors import AppError, ErrorCode
 from firmloop.hardware.registry import Registry
 from firmloop.records import DeviceStatus
-
-from .test_loop import LAST_SEEN, make, succeed_once
+from support.orchestration import LAST_SEEN, make, succeed_once
 
 
 def test_device_status_needs_a_mode_and_rejects_unknown_fields() -> None:

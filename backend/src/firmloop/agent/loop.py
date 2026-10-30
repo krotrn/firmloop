@@ -9,9 +9,11 @@ backend restarts while a run waits.
 import asyncio
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import AsyncGenerator, Callable, Collection, Mapping
+from contextlib import asynccontextmanager
 from typing import Literal
 
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from firmloop.agent.phases import (
@@ -27,7 +29,7 @@ from firmloop.agent.phases import (
 )
 from firmloop.agent.worklock import WorkLock
 from firmloop.board.state import Board
-from firmloop.config import Settings
+from firmloop.config import Settings, apply_overrides
 from firmloop.db import repo
 from firmloop.db.models import TERMINAL_RUN_STATUSES, WORKING_RUN_STATUSES, Run
 from firmloop.errors import AppError, ErrorCode
@@ -441,6 +443,61 @@ class RunOrchestrator:
     async def device_status(self) -> DeviceStatus:
         """The board as the UI sees it (the `device.status` payload)."""
         return await self._phases.device_status()
+
+    @asynccontextmanager
+    async def device_command(self) -> AsyncGenerator[None]:
+        """Hold the work lock around a manual command to the device, so no run can start
+        meanwhile. Raises RUN_ACTIVE while a run is working or a benchmark is running; a run
+        that waits for the user does not block."""
+        async with self.lock.held():
+            if await repo.has_working_work(self._engine):
+                open_run = await repo.get_open_run(self._engine)
+                details = {} if open_run is None else {"run_id": open_run.id}
+                raise AppError(ErrorCode.RUN_ACTIVE, "Another run is in progress.", details)
+            yield
+
+    async def update_settings(
+        self, changes: Mapping[str, object], *, remove: Collection[str] = ()
+    ) -> Settings:
+        """Store runtime settings and return the effective ones.
+
+        The stored values, `changes` and the removals are merged and validated under the work
+        lock, so concurrent updates cannot merge from a stale copy and an invalid value is never
+        stored (VALIDATION). Switching the provider without choosing a model drops the stored
+        model, which belonged to the old provider. Changing the device mode is refused while a
+        run is working; once changed, the board is reconciled for the new mode and the UI gets
+        the new device status."""
+        async with self.lock.held():
+            before = await self._settings()
+            removals = set(remove)
+            switched = changes.get("llm_provider", before.llm_provider) != before.llm_provider
+            if switched and "llm_model" not in changes:
+                removals.add("llm_model")
+            stored = await repo.get_stored_settings(self._engine)
+            merged = {k: v for k, v in {**stored, **changes}.items() if k not in removals}
+            try:
+                validated = apply_overrides(self._env, merged)
+            except ValidationError as exc:
+                errors = exc.errors(include_url=False, include_context=False, include_input=False)
+                raise AppError(
+                    ErrorCode.VALIDATION, "The settings are not valid.", {"errors": errors}
+                ) from exc
+            if validated.device_mode != before.device_mode and await repo.has_working_work(
+                self._engine
+            ):
+                raise AppError(
+                    ErrorCode.RUN_ACTIVE, "The device mode cannot change while a run is working."
+                )
+            await repo.put_settings(self._engine, changes, remove=removals)
+            after = await self._settings()
+        if after.device_mode != before.device_mode:
+            try:
+                await self._reconcile_board()
+            except Exception:
+                logger.exception("board reconcile failed")
+                self._reconcile_event("skipped", None, "the board reconcile failed")
+            await self._phases.publish_device_status()
+        return after
 
     def _reconcile_event(
         self, action: ReconcileAction, version: JsonObject | None, reason: str

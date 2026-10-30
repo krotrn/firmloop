@@ -3,7 +3,7 @@ cannot race or hit a stale-snapshot busy error."""
 
 import json
 import logging
-from collections.abc import AsyncGenerator, Collection
+from collections.abc import AsyncGenerator, Collection, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -15,7 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from ulid import ULID
 
-from firmloop.config import Settings, apply_overrides
+from firmloop.config import EDITABLE_SETTINGS, Settings, apply_overrides
 from firmloop.db.models import (
     TERMINAL_RUN_STATUSES,
     WAITING_RUN_STATUSES,
@@ -402,16 +402,8 @@ async def get_settings(engine: AsyncEngine, env: Settings) -> Settings:
     A row whose value is not valid JSON is skipped, and overrides that fail validation as a
     whole are dropped, both with a log line. Neither stops startup.
     """
-    async with read_session(engine) as session:
-        rows = (await session.execute(select(Setting))).scalars().all()
-    overrides: dict[str, object] = {}
-    for row in rows:
-        try:
-            overrides[row.key] = json.loads(row.value_json)
-        except ValueError:
-            logger.warning("ignoring setting %r: value is not valid JSON", row.key)
     try:
-        return apply_overrides(env, overrides)
+        return apply_overrides(env, await get_stored_settings(engine))
     except ValidationError as exc:
         logger.warning("ignoring stored settings, validation failed: %s", exc)
         return env
@@ -743,6 +735,24 @@ async def get_attempts(engine: AsyncEngine, run_id: str) -> list[Attempt]:
         return list(result.scalars().all())
 
 
+async def get_attempts_for_runs(
+    engine: AsyncEngine, run_ids: Collection[str]
+) -> dict[str, list[Attempt]]:
+    """The attempts of each given run (oldest first), one entry per run id."""
+    if not run_ids:
+        return {}
+    by_run: dict[str, list[Attempt]] = {run_id: [] for run_id in run_ids}
+    async with read_session(engine) as session:
+        result = await session.execute(
+            select(Attempt)
+            .where(Attempt.run_id.in_(run_ids))
+            .order_by(Attempt.run_id, Attempt.number)
+        )
+        for attempt in result.scalars():
+            by_run[attempt.run_id].append(attempt)
+    return by_run
+
+
 async def get_session(engine: AsyncEngine, session_id: str) -> SessionRow | None:
     async with read_session(engine) as session:
         return await session.get(SessionRow, session_id)
@@ -866,3 +876,155 @@ async def get_device_checks(engine: AsyncEngine, run_id: str) -> list[DeviceChec
             .order_by(DeviceCheck.created_at, DeviceCheck.id)
         )
         return list(result.scalars().all())
+
+
+# --- sessions and runs (API) ---
+
+
+async def list_sessions(
+    engine: AsyncEngine, *, archived: bool, limit: int, offset: int
+) -> list[SessionRow]:
+    """Sessions with the given archive flag, most recently updated first."""
+    async with read_session(engine) as session:
+        result = await session.execute(
+            select(SessionRow)
+            .where(SessionRow.archived == int(archived))
+            .order_by(SessionRow.updated_at.desc(), SessionRow.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return list(result.scalars().all())
+
+
+async def update_session(
+    engine: AsyncEngine,
+    session_id: str,
+    *,
+    title: str | None = None,
+    archived: bool | None = None,
+) -> SessionRow | None:
+    """Change the given fields (None leaves a field alone); None if the session is unknown.
+    A call that changes nothing writes nothing, `updated_at` included."""
+    async with write_tx(engine) as session:
+        row = await session.get(SessionRow, session_id)
+        if row is None:
+            return None
+        changed = False
+        if title is not None and title != row.title:
+            row.title = title
+            changed = True
+        if archived is not None and int(archived) != row.archived:
+            row.archived = int(archived)
+            changed = True
+        if changed:
+            row.updated_at = now_iso()
+        await session.flush()
+        session.expunge(row)
+        return row
+
+
+async def archive_session(engine: AsyncEngine, session_id: str) -> bool:
+    """Archive the session; False if it does not exist."""
+    return await update_session(engine, session_id, archived=True) is not None
+
+
+async def list_runs(engine: AsyncEngine, session_id: str, *, limit: int, offset: int) -> list[Run]:
+    """The session's runs, newest first."""
+    async with read_session(engine) as session:
+        result = await session.execute(
+            select(Run)
+            .where(Run.session_id == session_id)
+            .order_by(Run.started_at.desc(), Run.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return list(result.scalars().all())
+
+
+async def last_runs(engine: AsyncEngine, session_ids: Collection[str]) -> dict[str, Run]:
+    """The newest run of each given session that has one."""
+    if not session_ids:
+        return {}
+    rank = (
+        func.row_number()
+        .over(
+            partition_by=Run.session_id,
+            order_by=(Run.started_at.desc(), Run.id.desc()),
+        )
+        .label("rank")
+    )
+    ranked = select(Run.id.label("id"), rank).where(Run.session_id.in_(session_ids)).subquery()
+    async with read_session(engine) as session:
+        result = await session.execute(
+            select(Run).join(ranked, Run.id == ranked.c.id).where(ranked.c.rank == 1)
+        )
+        return {run.session_id: run for run in result.scalars()}
+
+
+async def get_versions(engine: AsyncEngine, version_ids: Collection[str]) -> dict[str, Version]:
+    """The versions that exist among `version_ids`, by id."""
+    if not version_ids:
+        return {}
+    async with read_session(engine) as session:
+        result = await session.execute(select(Version).where(Version.id.in_(version_ids)))
+        return {v.id: v for v in result.scalars()}
+
+
+# --- versions, settings (API) ---
+
+
+async def list_versions(
+    engine: AsyncEngine,
+    session_id: str,
+    *,
+    status: str | None,
+    limit: int,
+    offset: int,
+) -> list[Version]:
+    """A session's versions, newest first, `limit` rows after skipping `offset`."""
+    query = select(Version).where(Version.session_id == session_id)
+    if status is not None:
+        query = query.where(Version.status == status)
+    async with read_session(engine) as session:
+        result = await session.execute(
+            query.order_by(Version.id.desc()).limit(limit).offset(offset)
+        )
+        return list(result.scalars().all())
+
+
+async def get_stored_settings(engine: AsyncEngine) -> dict[str, object]:
+    """The runtime settings rows, decoded. A row that is not valid JSON is skipped."""
+    async with read_session(engine) as session:
+        rows = (await session.execute(select(Setting))).scalars().all()
+    stored: dict[str, object] = {}
+    for row in rows:
+        try:
+            stored[row.key] = json.loads(row.value_json)
+        except ValueError:
+            logger.warning("ignoring setting %r: value is not valid JSON", row.key)
+    return stored
+
+
+async def put_settings(
+    engine: AsyncEngine, changes: Mapping[str, object], *, remove: Collection[str] = ()
+) -> None:
+    """Write the given runtime settings (JSON-encoded) and delete the `remove` keys, in one
+    transaction: a value that cannot be stored leaves everything as it was. Only the editable
+    settings can be stored (ValueError otherwise)."""
+    unknown = sorted((set(changes) | set(remove)) - EDITABLE_SETTINGS)
+    if unknown:
+        raise ValueError(f"not editable settings: {', '.join(unknown)}")
+    now = now_iso()
+    async with write_tx(engine) as session:
+        for key, value in changes.items():
+            row = await session.get(Setting, key)
+            encoded = json.dumps(value)
+            if row is None:
+                session.add(Setting(key=key, value_json=encoded, updated_at=now))
+            else:
+                row.value_json = encoded
+                row.updated_at = now
+        for key in remove:
+            row = await session.get(Setting, key)
+            if row is not None:
+                await session.delete(row)

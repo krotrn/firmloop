@@ -1,19 +1,47 @@
 import asyncio
-from collections.abc import AsyncGenerator
-from contextlib import AsyncExitStack, asynccontextmanager
+from collections.abc import AsyncGenerator, Callable
+from contextlib import AbstractAsyncContextManager, AsyncExitStack, asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from firmloop.agent.loop import RunOrchestrator
+from firmloop.agent.phases import lib_version_from_header
 from firmloop.agent.templates import load_api_header
+from firmloop.api import device, meta, runs, sessions, versions
+from firmloop.api import settings as settings_api
+from firmloop.api.errors import install_error_handlers
 from firmloop.api.ws import build_ws_router
+from firmloop.clients.builder import BuilderClient
 from firmloop.clients.runner import RunnerClient
 from firmloop.config import Settings
 from firmloop.db.engine import create_db_engine
 from firmloop.events.bus import EventBus
 from firmloop.hardware.registry import Registry
 from firmloop.targets.virtual import VirtualTarget
+
+
+def assemble_app(
+    settings: Settings,
+    event_bus: EventBus,
+    *,
+    lifespan: Callable[[FastAPI], AbstractAsyncContextManager[None]] | None = None,
+) -> FastAPI:
+    """The FastAPI app with its middleware, error handlers and routers, but no state: the
+    lifespan (or a test) fills `app.state`."""
+    app = FastAPI(title="FirmLoop", version="0.1.0", lifespan=lifespan)
+    install_error_handlers(app)  # first, so the CORS middleware added next wraps it
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.frontend_origins,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    app.state.event_bus = event_bus
+    app.include_router(build_ws_router(event_bus, settings.frontend_origins))
+    for module in (meta, sessions, runs, versions, device, settings_api):
+        app.include_router(module.router)
+    return app
 
 
 def create_app() -> FastAPI:
@@ -30,6 +58,10 @@ def create_app() -> FastAPI:
             header = await asyncio.to_thread(load_api_header, settings.firmware_dir)
             runner = RunnerClient(base_url=settings.runner_url)
             stack.push_async_callback(runner.aclose)
+            builder = BuilderClient(
+                base_url=settings.builder_url, max_timeout_s=settings.build_timeout_s
+            )
+            stack.push_async_callback(builder.aclose)
             target = VirtualTarget(runner, registry)
             stack.push_async_callback(target.aclose)
             orchestrator = RunOrchestrator(
@@ -42,26 +74,18 @@ def create_app() -> FastAPI:
                 header=header,
             )
             stack.push_async_callback(orchestrator.shutdown)
+            app.state.engine = engine
+            app.state.registry = registry
+            app.state.env = settings
+            app.state.runner = runner
+            app.state.builder = builder
+            app.state.virtual_target = target
             app.state.orchestrator = orchestrator
+            app.state.lib_version = lib_version_from_header(header)
             await orchestrator.startup()
             yield
 
-    app = FastAPI(title="FirmLoop", version="0.1.0", lifespan=lifespan)
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.frontend_origins,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
-    app.state.event_bus = event_bus
-    app.include_router(build_ws_router(event_bus, settings.frontend_origins))
-
-    @app.get("/api/health")
-    async def health() -> dict[str, bool]:  # pyright: ignore[reportUnusedFunction]
-        return {"ok": True}
-
-    return app
+    return assemble_app(settings, event_bus, lifespan=lifespan)
 
 
 app = create_app()

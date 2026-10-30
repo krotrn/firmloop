@@ -9,8 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from firmloop.db import repo
 from firmloop.hardware.registry import Registry
-
-from .test_loop import code_reply, make, spec_reply
+from support.orchestration import code_reply, make, spec_reply
 
 
 async def test_resume_while_the_task_is_finishing_is_not_lost(

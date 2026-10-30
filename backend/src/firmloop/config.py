@@ -10,6 +10,20 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 ProviderName = Literal["gemini", "ollama", "anthropic", "fake"]
 DeviceMode = Literal["real", "virtual"]
 
+EDITABLE_SETTINGS = frozenset(
+    {
+        "llm_provider",
+        "llm_model",
+        "llm_fallback_provider",
+        "max_attempts",
+        "auto_approve",
+        "device_mode",
+        "voice_input_enabled",
+        "speak_results",
+    }
+)
+"""The settings stored in the settings table; everything else comes from the environment."""
+
 # Seconds a run needs per attempt on top of the LLM call (build, native tests, verification).
 ATTEMPT_OVERHEAD_S = 120.0
 FAKE_TIMEOUT_S = 1.0

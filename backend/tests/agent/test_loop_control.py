@@ -12,8 +12,7 @@ from firmloop.db import repo
 from firmloop.errors import AppError, ErrorCode
 from firmloop.hardware.registry import Registry
 from firmloop.spec import models as m
-
-from .test_loop import (
+from support.orchestration import (
     GOOD_CODE,
     SPEC,
     SPEC_TWO,
