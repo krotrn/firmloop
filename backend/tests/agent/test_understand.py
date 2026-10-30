@@ -209,3 +209,32 @@ async def test_followup_dropped_base_id_raises_feedback(registry: Registry, spec
     with pytest.raises(SchemaFeedback) as info:
         await understand(caller, registry, "x", ctx=CTX, base_spec=spec)
     assert any("r1" in p for p in info.value.problems)
+
+
+async def test_feedback_uses_the_wire_field_names(registry: Registry, spec: m.Spec) -> None:
+    reply = json.loads(spec_reply(spec))
+    reply["spec"]["scenarios"][0]["given"].append({"channel": "motion", "number": 1, "flag": None})
+    expect = reply["spec"]["scenarios"][0]["steps"][0]["expect"]
+    expect.append(
+        {
+            "channel": "display",
+            "op": "display_contains_value",
+            "number": 5,
+            "flag": None,
+            "text": None,
+            "row": None,
+            "source_channel": "temp",
+            "tolerance": 0.1,
+            "within_ms": 200,
+            "hold_ms": None,
+        }
+    )
+    caller = ScriptedCaller(json.dumps(reply))
+
+    with pytest.raises(SchemaFeedback) as info:
+        await understand(caller, registry, "x", ctx=CTX)
+
+    problems = info.value.problems
+    assert all("'value'" not in p and not p.split(":")[0].endswith(".value") for p in problems)
+    assert any("'motion'" in p and "set 'flag' to true or false" in p for p in problems)
+    assert any("'number', 'flag' and 'text' are not used" in p for p in problems)

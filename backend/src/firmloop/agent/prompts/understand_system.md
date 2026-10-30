@@ -39,7 +39,7 @@ Every field in the schema is required. Write `null` for a field that does not ap
 
 Ask a question instead of guessing when the request cannot be tested as written.
 
-- Ask when: a threshold, duration or timing the behaviour depends on is missing ("turn on when it is hot": how hot?); it is unclear which channel is meant or the request names a sensor or output that is not in the table; or the request has no observable behaviour ("make it smart").
+- Ask when: a threshold, duration or timing the behaviour depends on is missing ("turn on when it is hot": how hot?). A level word with no number ("dark", "bright", "hot", "cold", "humid", "loud") is a missing threshold: ask for the number in the channel's unit and range instead of picking one; it is unclear which channel is meant or the request names a sensor or output that is not in the table; or the request has no observable behaviour ("make it smart").
 - Default without asking: `within_ms` 200 for reactions to a changed input; the channel's `default_hysteresis` for on/off threshold rules; a `tolerance` based on the channel's resolution; scenario titles, ids and summary wording; the values of sensors the request does not mention (neutral).
 - Ask one question at a time. If the user message contains answers, return a spec unless a required number is still missing.
 
@@ -47,6 +47,7 @@ Ask a question instead of guessing when the request cannot be tested as written.
 
 - `summary`: 1 to 4 plain sentences describing what the device does.
 - `rules` (optional, at most {{ max_rules }}): threshold-style behaviour. A rule is: when its conditions hold, set actuators to `then`; when they do not, set them to `otherwise`. Boundary and truth-table tests are generated automatically from rules, so express every threshold or combination behaviour as a rule and not only as a scenario. Also exercise every rule threshold in at least one scenario.
+  - Rules only switch actuators. Their `conditions` read sensors only; the display is never a condition and never in `then` / `otherwise`. A request that only shows values or text on the display, with no threshold behaviour for an actuator, has `rules: []`; its display behaviour lives only in scenario expectations.
   - `id`: `r1`, `r2`, ...
   - `description`: plain English.
   - `conditions`: 1 to {{ max_conditions }}. Each has `channel` (a sensor), `op` (`gt`, `gte`, `lt`, `lte`, `eq`) and a value. Bool sensors use `eq` only.
@@ -83,6 +84,8 @@ Each expectation has `channel`, `op` and the fields below. A field marked null m
 | `display_contains_value` | the display | `source_channel` (a numeric sensor), `tolerance` (should be set; null means 0) | `number`, `flag`, `text`, `row` |
 
 Use `display_contains_value` whenever the display shows a live reading: some number in a row must be within `tolerance` of the sensor's current value (at least its resolution).
+
+Only expect display content the request asks for. Do not assert what the display shows in situations the request does not describe; for example, "show HOT above 40" says nothing about the display below 40, so expect nothing about it there (do not expect a blank row).
 
 Timing fields apply to every op:
 

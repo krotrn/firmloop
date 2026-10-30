@@ -232,3 +232,14 @@ def test_render_prompt_rejects_inconsistent_followup() -> None:
         render_prompt("understand_user", followup=True, base_spec_json=None, **base)
     with pytest.raises(ValueError, match="followup"):
         render_prompt("understand_user", followup=False, base_spec_json=BASE, **base)
+
+
+def test_system_prompt_guards_against_common_live_mistakes(registry: Registry) -> None:
+    text = _system(registry, False)
+    # a level word without a number is a missing threshold
+    assert '"dark"' in text and "instead of picking one" in text
+    # display-only requests have no rules
+    assert "has `rules: []`" in text
+    assert "the display is never a condition" in text
+    # no display expectations for situations the request does not describe
+    assert "do not expect a blank row" in text

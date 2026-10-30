@@ -7,7 +7,8 @@ only. --file reads one request per line (blank lines and # comments skipped).
 --delay waits between requests (useful on free-tier rate limits). Each request costs one
 to four provider calls.
 Calls are logged to a throwaway SQLite file, not the app database. Prints the spec as JSON plus
-the boundary text, or the question, or the error, and the number of provider calls used.
+the boundary text, or the question, or the error, the problems behind each failed call, and the
+number of provider calls used.
 """
 
 import argparse
@@ -18,7 +19,7 @@ import time
 from pathlib import Path
 from typing import get_args
 
-from sqlalchemy import func, select
+from sqlalchemy import func, literal_column, select
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from firmloop.agent.understand import understand
@@ -37,6 +38,13 @@ from firmloop.spec.describe import describe_boundaries
 async def _call_count(engine: AsyncEngine) -> int:
     async with repo.read_session(engine) as db:
         return (await db.execute(select(func.count()).select_from(LlmCall))).scalar_one()
+
+
+async def _failed_calls(engine: AsyncEngine, skip: int) -> list[LlmCall]:
+    """Calls after the first ``skip`` rows (in insert order) that did not succeed."""
+    stmt = select(LlmCall).order_by(literal_column("rowid")).offset(skip)
+    async with repo.read_session(engine) as db:
+        return [row for row in (await db.execute(stmt)).scalars() if not row.ok]
 
 
 async def main(
@@ -73,6 +81,9 @@ async def main(
                             print(f"  boundary: {line}")
                     elif result.question is not None:
                         print(f"QUESTION: {result.question.question} ({result.question.reason})")
+                for row in await _failed_calls(engine, before):
+                    reason = (row.error_message or "")[:300]
+                    print(f"  failed call (retry {row.schema_retry}): {row.error_code}: {reason}")
                 calls = await _call_count(engine) - before
                 print(f"--- provider calls: {calls}, {time.monotonic() - started:.1f} s\n")
         finally:

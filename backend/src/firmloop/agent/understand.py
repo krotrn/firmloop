@@ -1,5 +1,6 @@
 """Understand step: turn a request into a validated spec, or a clarifying question."""
 
+import re
 from collections.abc import Sequence
 
 from firmloop.agent.templates import Answer, build_understand_prompts
@@ -20,8 +21,31 @@ TEMPERATURE = 0.2
 MAX_TOKENS = 3000
 
 
+# The validator speaks spec-model terms (one ``value`` field); the model writes the wire fields
+# ``number``, ``flag`` and ``text``, so feedback is reworded into those.
+_WIRE_TERMS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"; use true or false$"), "; set 'flag' to true or false and 'number' to null"),
+    (re.compile(r"; use a number$"), "; set 'number' and leave 'flag' null"),
+    (re.compile(r"; use a string$"), "; put the string in 'text'"),
+    (
+        re.compile(r"^'value' is not used by op '(\w+)'; set it to null$"),
+        r"'number', 'flag' and 'text' are not used by op '\1'; set them to null",
+    ),
+    (re.compile(r"needs a value for"), "needs 'flag' set for"),
+    (re.compile(r"needs a non-empty text value"), "needs a non-empty 'text'"),
+    (re.compile(r"needs a text value"), "needs 'text' set"),
+)
+
+
+def _in_wire_terms(error: SpecError) -> str:
+    message = error.message
+    for pattern, replacement in _WIRE_TERMS:
+        message = pattern.sub(replacement, message)
+    return f"{error.path.removesuffix('.value')}: {message}"
+
+
 def _feedback(errors: list[SpecError]) -> SchemaFeedback:
-    return SchemaFeedback([str(e) for e in errors])
+    return SchemaFeedback([_in_wire_terms(e) for e in errors])
 
 
 async def understand(
