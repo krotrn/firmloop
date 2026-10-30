@@ -8,32 +8,16 @@ the reply parses against the wire model. Costs one request.
 import asyncio
 import json
 import sys
-from typing import Any, get_args
+from typing import get_args
 
 from firmloop.config import ProviderName, Settings
 from firmloop.errors import AppError
 from firmloop.llm.base import LLMError, Message
 from firmloop.llm.factory import create_provider
+from firmloop.llm.structured import inline_refs
 from firmloop.spec.wire import WireUnderstandResult
 
 PROMPT = "Turn the fan on when the temperature is above 30 degrees."
-
-
-def inline_refs(schema: dict[str, Any]) -> dict[str, Any]:
-    """Return ``schema`` with every ``$ref`` replaced by its definition and ``$defs`` removed."""
-    defs: dict[str, Any] = schema.get("$defs", {})
-
-    def walk(node: Any) -> Any:
-        if isinstance(node, dict):
-            ref = node.get("$ref")  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
-            if isinstance(ref, str):
-                return walk(defs[ref.rsplit("/", 1)[-1]])
-            return {k: walk(v) for k, v in node.items() if k != "$defs"}  # pyright: ignore[reportUnknownVariableType]
-        if isinstance(node, list):
-            return [walk(v) for v in node]  # pyright: ignore[reportUnknownVariableType]
-        return node
-
-    return walk(schema)
 
 
 async def main(provider_name: ProviderName | None) -> int:

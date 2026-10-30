@@ -401,3 +401,46 @@ async def test_get_settings_skips_undecodable_row(
         result = await repo.get_settings(engine, _settings_env())
     assert result.max_attempts == 2
     assert "not valid JSON" in caplog.text
+
+
+async def test_log_llm_call_inserts_row(engine: AsyncEngine) -> None:
+    row_id = await repo.log_llm_call(
+        engine,
+        repo.NewLLMCall(
+            purpose="code",
+            provider="fake",
+            model="m",
+            schema_retry=2,
+            input_tokens=5,
+            latency_ms=12,
+            ok=False,
+            error_code="LLM_SCHEMA_INVALID",
+            error_message="bad",
+            request_json="[]",
+            response_text="oops",
+        ),
+    )
+    async with engine.connect() as conn:
+        row = (
+            (await conn.execute(text("SELECT * FROM llm_calls WHERE id = :i"), {"i": row_id}))
+            .mappings()
+            .one()
+        )
+    assert row["schema_retry"] == 2
+    assert row["ok"] == 0
+    assert row["input_tokens"] == 5
+    assert row["output_tokens"] is None
+    assert row["created_at"].endswith("Z")
+
+
+def test_new_llm_call_rejects_bad_retry() -> None:
+    with pytest.raises(ValidationError):
+        repo.NewLLMCall(
+            purpose="code",
+            provider="p",
+            model="m",
+            schema_retry=4,
+            latency_ms=0,
+            ok=True,
+            request_json="[]",
+        )

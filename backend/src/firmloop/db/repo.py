@@ -20,6 +20,7 @@ from firmloop.db.models import (
     WORKING_RUN_STATUSES,
     BenchmarkRun,
     DeviceState,
+    LlmCall,
     Run,
     Setting,
     Version,
@@ -101,6 +102,28 @@ class NewBenchmarkRun(BaseModel):
     max_attempts: int = Field(ge=1, le=8)
     task_ids: list[str]
     notes: str | None = None
+
+
+class NewLLMCall(BaseModel):
+    """One provider call, as written to ``llm_calls``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    purpose: Literal["understand", "code", "control"]
+    provider: str
+    model: str
+    schema_retry: int = Field(default=0, ge=0, le=3)
+    run_id: str | None = None
+    attempt_id: str | None = None
+    benchmark_result_id: str | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    latency_ms: int = Field(ge=0)
+    ok: bool
+    error_code: str | None = None
+    error_message: str | None = None
+    request_json: str
+    response_text: str | None = None
 
 
 class RecoveryReport(BaseModel):
@@ -244,6 +267,16 @@ async def create_session(engine: AsyncEngine, title: str = DEFAULT_SESSION_TITLE
         session.add(row)
         await session.flush()
     return row
+
+
+async def log_llm_call(engine: AsyncEngine, call: NewLLMCall) -> str:
+    """Insert one ``llm_calls`` row and return its id."""
+    values = call.model_dump()
+    values["ok"] = int(call.ok)
+    row = LlmCall(id=new_id(), created_at=now_iso(), **values)
+    async with write_tx(engine) as session:
+        session.add(row)
+    return row.id
 
 
 async def get_run(engine: AsyncEngine, run_id: str) -> Run | None:
