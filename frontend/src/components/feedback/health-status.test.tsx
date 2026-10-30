@@ -39,13 +39,23 @@ describe("HealthStatus", () => {
     expect(await screen.findByText("backend down")).toBeInTheDocument();
   });
 
-  it("shows 'backend down' when ok is false", async () => {
+  it("names the services that are down when the backend reports them", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(jsonResponse({ ok: false }))
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          ok: false,
+          services: {
+            runner: "down",
+            builder: "down",
+            device: "no_device",
+            llm: "ok",
+          },
+        })
+      )
     );
     render(<HealthStatus />);
-    expect(await screen.findByText("backend down")).toBeInTheDocument();
+    expect(await screen.findByText("runner, builder down")).toBeInTheDocument();
   });
 
   it("shows 'backend down' on a 500", async () => {
@@ -54,9 +64,9 @@ describe("HealthStatus", () => {
     expect(await screen.findByText("backend down")).toBeInTheDocument();
   });
 
-  it("shows 'backend down' on a schema-invalid body", async () => {
+  it("shows 'backend degraded' on a body without ok or services", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ foo: 1 })));
     render(<HealthStatus />);
-    expect(await screen.findByText("backend down")).toBeInTheDocument();
+    expect(await screen.findByText("backend degraded")).toBeInTheDocument();
   });
 });

@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { HealthStatus } from "@/components/feedback/health-status";
 import { siteConfig } from "@/config/site";
 
 export function Header() {
@@ -12,7 +13,7 @@ export function Header() {
           </span>
           <span>{siteConfig.name}</span>
         </Link>
-        <nav className="flex items-center gap-4">
+        <nav className="mr-auto ml-6 flex items-center gap-4">
           {siteConfig.mainNav.map((item) => (
             <Link
               key={item.href}
@@ -23,6 +24,7 @@ export function Header() {
             </Link>
           ))}
         </nav>
+        <HealthStatus />
       </div>
     </header>
   );

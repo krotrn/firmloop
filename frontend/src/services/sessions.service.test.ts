@@ -50,3 +50,59 @@ describe("sessionsService.getSession", () => {
     expect((err as ApiError).code).toBe("NOT_FOUND");
   });
 });
+
+const jsonResponse = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+
+describe("sessionsService.listSessions", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("requests non-archived sessions without a cursor by default", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ items: [session], next_cursor: null }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(sessionsService.listSessions()).resolves.toEqual({
+      items: [session],
+      next_cursor: null,
+    });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "http://127.0.0.1:8000/api/sessions?archived=false"
+    );
+  });
+
+  it("passes the cursor and limit, encoded", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ items: [], next_cursor: null }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await sessionsService.listSessions({ cursor: "a b/c", limit: 10 });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "http://127.0.0.1:8000/api/sessions?archived=false&cursor=a%20b%2Fc&limit=10"
+    );
+  });
+});
+
+describe("sessionsService.createSession", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("POSTs an empty JSON object and returns the new session", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(session, 201));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(sessionsService.createSession()).resolves.toEqual(session);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://127.0.0.1:8000/api/sessions");
+    expect(init.method).toBe("POST");
+    expect(init.body).toBe("{}");
+  });
+});
