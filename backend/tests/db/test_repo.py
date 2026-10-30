@@ -444,3 +444,53 @@ def test_new_llm_call_rejects_bad_retry() -> None:
             ok=True,
             request_json="[]",
         )
+
+
+async def test_device_state_pending_expected_cycle(engine: AsyncEngine) -> None:
+    s = await repo.create_session(engine)
+    run = await _start_run(engine, s.id)
+    await _insert_candidate(engine, s.id, run.id, "v-1")
+    initial = await repo.get_device_state(engine)
+    assert (initial.expected_version_id, initial.pending_version_id) == (None, None)
+
+    await repo.set_pending_version(engine, "v-1")
+    state = await repo.get_device_state(engine)
+    assert (state.expected_version_id, state.pending_version_id) == (None, "v-1")
+
+    await repo.set_expected_version(engine, "v-1", "virtual")
+    state = await repo.get_device_state(engine)
+    assert (state.expected_version_id, state.pending_version_id) == ("v-1", None)
+    assert state.mode == "virtual"
+
+    await repo.set_expected_version(engine, None, "real")
+    state = await repo.get_device_state(engine)
+    assert (state.expected_version_id, state.mode) == (None, "real")
+
+
+async def test_clear_pending_version_keeps_expected(engine: AsyncEngine) -> None:
+    s = await repo.create_session(engine)
+    run = await _start_run(engine, s.id)
+    await _insert_candidate(engine, s.id, run.id, "v-1")
+    await _insert_candidate(engine, s.id, run.id, "v-2")
+    await repo.set_expected_version(engine, "v-1", "real")
+    await repo.set_pending_version(engine, "v-2")
+    await repo.clear_pending_version(engine)
+    state = await repo.get_device_state(engine)
+    assert (state.expected_version_id, state.pending_version_id, state.mode) == (
+        "v-1",
+        None,
+        "real",
+    )
+
+
+async def test_reject_pending_version(engine: AsyncEngine) -> None:
+    s = await repo.create_session(engine)
+    run = await _start_run(engine, s.id)
+    assert await repo.reject_pending_version(engine) is None
+    await _insert_candidate(engine, s.id, run.id, "v-1")
+    await repo.set_pending_version(engine, "v-1")
+    assert await repo.reject_pending_version(engine) == "v-1"
+    version = await repo.get_version(engine, "v-1")
+    assert version is not None and version.status == "rejected"
+    assert (await repo.get_device_state(engine)).pending_version_id is None
+    assert await repo.get_version(engine, "missing") is None

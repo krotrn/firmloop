@@ -294,6 +294,59 @@ async def get_device_state(engine: AsyncEngine) -> DeviceState:
         return (await session.execute(select(DeviceState))).scalar_one()
 
 
+async def get_version(engine: AsyncEngine, version_id: str) -> Version | None:
+    async with read_session(engine) as session:
+        return await session.get(Version, version_id)
+
+
+async def set_pending_version(engine: AsyncEngine, version_id: str) -> None:
+    """Record the candidate being flashed or verified, so a crash mid-deploy can be detected."""
+    async with write_tx(engine) as session:
+        await session.execute(
+            update(DeviceState).values(pending_version_id=version_id, updated_at=now_iso())
+        )
+
+
+async def clear_pending_version(engine: AsyncEngine) -> None:
+    """Forget the pending candidate; what is expected stays."""
+    async with write_tx(engine) as session:
+        await session.execute(
+            update(DeviceState).values(pending_version_id=None, updated_at=now_iso())
+        )
+
+
+async def set_expected_version(
+    engine: AsyncEngine, version_id: str | None, mode: Literal["real", "virtual"]
+) -> None:
+    """Record what should be on the board and clear the pending candidate."""
+    async with write_tx(engine) as session:
+        await session.execute(
+            update(DeviceState).values(
+                expected_version_id=version_id,
+                pending_version_id=None,
+                mode=mode,
+                updated_at=now_iso(),
+            )
+        )
+
+
+async def reject_pending_version(engine: AsyncEngine) -> str | None:
+    """Mark the pending candidate rejected and clear it. Returns its id, or None if none."""
+    async with write_tx(engine) as session:
+        state = (await session.execute(select(DeviceState))).scalar_one()
+        version_id = state.pending_version_id
+        if version_id is None:
+            return None
+        await session.execute(
+            update(Version)
+            .where(Version.id == version_id, Version.status == "candidate")
+            .values(status="rejected")
+        )
+        state.pending_version_id = None
+        state.updated_at = now_iso()
+        return version_id
+
+
 async def get_settings(engine: AsyncEngine, env: Settings) -> Settings:
     """Effective settings: `env` with the runtime overrides from the settings table applied.
 
