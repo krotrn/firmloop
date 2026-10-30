@@ -18,9 +18,19 @@ from firmloop.spec import models as m
 
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 DEFAULT_DISPLAY_ROWS = 4
+API_HEADER_PATH = Path("lib/FirmLoop/src/FirmLoop.h")
 
 # Tags the templates put around untrusted text.
-TAGS = ("request", "answer", "feedback", "current_spec", "rejected_spec")
+TAGS = (
+    "request",
+    "answer",
+    "feedback",
+    "current_spec",
+    "rejected_spec",
+    "spec",
+    "base_code",
+    "previous_code",
+)
 _CLOSING_TAG = re.compile(rf"</(\s*(?:{'|'.join(TAGS)})\s*)>", re.IGNORECASE)
 
 
@@ -61,6 +71,15 @@ class Answer(BaseModel):
 
     question: str
     answer: str
+
+
+def load_api_header(firmware_dir: Path) -> str:
+    """Text of ``FirmLoop.h``, the API generated code is written against.
+
+    Read from the firmware library under ``firmware_dir``, so the prompt can never drift from the
+    header the code is compiled against. This is a blocking read; call it once and pass the text on.
+    """
+    return (firmware_dir / API_HEADER_PATH).read_text(encoding="utf-8")
 
 
 def display_rows(registry: Registry) -> int:
@@ -104,5 +123,36 @@ def build_understand_prompts(
         answers=list(answers),
         rejected_spec_json=rejected_spec_json,
         rejection_feedback=rejection_feedback,
+    )
+    return system, user
+
+
+def build_code_prompts(
+    registry: Registry,
+    spec: m.Spec,
+    *,
+    header: str,
+    base_code: str | None = None,
+    previous_code: str | None = None,
+    feedback: str | None = None,
+) -> tuple[str, str]:
+    """Return ``(system, user)`` messages for the code step.
+
+    ``header`` is the text of ``FirmLoop.h`` (see ``load_api_header``). ``previous_code`` is the
+    rejected attempt that ``feedback`` talks about.
+    """
+    system = render_prompt(
+        "code_system",
+        api_header=header,
+        channels=list(registry.channels.values()),
+        display_rows=display_rows(registry),
+        ai_notes=registry.ai_notes(),
+    )
+    user = render_prompt(
+        "code_user",
+        spec_json=spec.model_dump_json(),
+        base_code=base_code,
+        previous_code=previous_code,
+        feedback=feedback,
     )
     return system, user

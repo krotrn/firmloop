@@ -57,6 +57,7 @@ class Settings(BaseSettings):
 
     # storage
     hardware_dir: Path = Path("/repo/hardware")
+    firmware_dir: Path = Path("/repo/firmware")
     data_dir: Path = Path("/data")
     database_url: str = "sqlite+aiosqlite:////data/firmloop.db"
 
