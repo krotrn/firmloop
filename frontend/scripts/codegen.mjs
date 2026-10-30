@@ -1,4 +1,4 @@
-// Generates src/types/generated/{api,spec,events}.ts from the backend JSON schemas.
+// Generates src/types/generated/{api,spec,events,events-schema}.ts from the backend JSON schemas.
 //   node scripts/codegen.mjs [--schemas <dir>] [--out <dir>] [--check]
 // With --check, nothing is written to --out: the output is generated in memory and
 // compared with the files already there; the exit code is non-zero when any differ, is
@@ -56,6 +56,15 @@ async function jsonSchemaToTs(file, name) {
   return finish(body);
 }
 
+async function eventsSchemaModule() {
+  const schema = await readJson("events.schema.json");
+  return finish(
+    "export const eventsSchema = " +
+      JSON.stringify(schema, null, 2) +
+      " as const;"
+  );
+}
+
 async function generate() {
   const openapi = await readJson("openapi.json");
   const ast = await openapiTS(openapi, { enumValues: true, alphabetize: true });
@@ -63,6 +72,7 @@ async function generate() {
     "api.ts": finish(astToString(ast)),
     "spec.ts": await jsonSchemaToTs("spec.schema.json", "Spec"),
     "events.ts": await jsonSchemaToTs("events.schema.json", "Events"),
+    "events-schema.ts": await eventsSchemaModule(),
   };
 }
 
