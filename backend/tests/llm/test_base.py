@@ -3,6 +3,7 @@ from typing import Any
 import pytest
 
 from firmloop.llm.base import (
+    MAX_RETRY_AFTER_S,
     LLMRateLimited,
     LLMUnavailable,
     Message,
@@ -58,6 +59,22 @@ async def test_retry_after_is_honoured_when_longer() -> None:
     )
     await call(provider, sleep)
     assert sleep.delays == [30, 4]
+
+
+async def test_retry_after_at_the_cap_is_honoured() -> None:
+    sleep = Sleeps()
+    provider = FakeProvider([LLMRateLimited(retry_after_s=MAX_RETRY_AFTER_S), "ok"])
+    assert await call(provider, sleep) == "ok"
+    assert sleep.delays == [MAX_RETRY_AFTER_S]
+
+
+async def test_retry_after_beyond_the_cap_raises_without_sleeping() -> None:
+    sleep = Sleeps()
+    provider = FakeProvider([LLMRateLimited("daily quota", retry_after_s=19 * 3600), "ok"])
+    with pytest.raises(LLMRateLimited, match="daily quota"):
+        await call(provider, sleep)
+    assert sleep.delays == []
+    assert len(provider.calls) == 1
 
 
 async def test_other_errors_are_not_retried() -> None:

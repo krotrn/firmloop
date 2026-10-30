@@ -2,7 +2,7 @@
 
 import asyncio
 import time
-from typing import Any
+from typing import Any, cast
 
 import httpx
 from google import genai
@@ -20,6 +20,38 @@ from firmloop.llm.base import (
 )
 
 TIMEOUT_STATUS_CODES = (408, 504)
+RETRY_INFO_TYPE = "google.rpc.RetryInfo"
+
+
+def retry_info_delay_s(details: object) -> float | None:
+    """Read ``retryDelay`` (a protobuf Duration such as ``"69s"``) from a Gemini error body."""
+    if not isinstance(details, dict):
+        return None
+    error = cast(dict[str, object], details).get("error")
+    if not isinstance(error, dict):
+        return None
+    items = cast(dict[str, object], error).get("details")
+    if not isinstance(items, list):
+        return None
+    for item in cast(list[object], items):
+        if not isinstance(item, dict):
+            continue
+        entry = cast(dict[str, object], item)
+        kind = entry.get("@type")
+        delay = entry.get("retryDelay")
+        if isinstance(kind, str) and kind.endswith(RETRY_INFO_TYPE) and isinstance(delay, str):
+            if delay.endswith("s"):
+                try:
+                    return float(delay[:-1])
+                except ValueError:
+                    return None
+    return None
+
+
+def rate_limit_delay_s(exc: errors.APIError) -> float | None:
+    """Retry delay from the ``Retry-After`` header, else from the RetryInfo detail."""
+    header = retry_after_s(getattr(exc, "response", None))
+    return header if header is not None else retry_info_delay_s(getattr(exc, "details", None))
 
 
 class GeminiProvider:
@@ -76,12 +108,12 @@ class GeminiProvider:
             if exc.code == 429:
                 raise LLMRateLimited(
                     f"gemini rate limited: {exc.message}",
-                    retry_after_s=retry_after_s(getattr(exc, "response", None)),
+                    retry_after_s=rate_limit_delay_s(exc),
                 ) from exc
             if exc.code in OVERLOADED_STATUS_CODES:
                 raise LLMRateLimited(
                     f"gemini overloaded ({exc.code}): {exc.message}",
-                    retry_after_s=retry_after_s(getattr(exc, "response", None)),
+                    retry_after_s=rate_limit_delay_s(exc),
                 ) from exc
             if exc.code in TIMEOUT_STATUS_CODES:
                 raise LLMTimeout(f"gemini error {exc.code}: {exc.message}") from exc

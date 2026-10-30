@@ -11,6 +11,8 @@ logger = logging.getLogger(__name__)
 
 # Wait before retry n (1-based) after a rate limit; the number of tries is len + 1.
 BACKOFF_DELAYS_S: tuple[float, ...] = (2.0, 4.0, 8.0, 16.0)
+# A provider asking for a longer wait (e.g. an exhausted daily quota) fails at once instead.
+MAX_RETRY_AFTER_S = 60.0
 # Overloaded or temporarily unavailable: retried with the same backoff as a rate limit.
 OVERLOADED_STATUS_CODES = frozenset({503, 529})
 
@@ -94,8 +96,8 @@ async def complete_with_backoff(
     """Call ``provider.complete``; on ``LLMRateLimited`` wait and retry.
 
     Waits ``delays_s`` in turn (or the provider's ``retry_after_s`` when it is larger). After
-    ``len(delays_s) + 1`` tries the last ``LLMRateLimited`` is raised. Other errors propagate
-    immediately.
+    ``len(delays_s) + 1`` tries the last ``LLMRateLimited`` is raised. A ``retry_after_s`` above
+    ``MAX_RETRY_AFTER_S`` is raised at once without waiting. Other errors propagate immediately.
     """
     for attempt in range(len(delays_s) + 1):
         try:
@@ -107,6 +109,14 @@ async def complete_with_backoff(
                 raise
             delay = delays_s[attempt]
             if exc.retry_after_s is not None:
+                if exc.retry_after_s > MAX_RETRY_AFTER_S:
+                    logger.warning(
+                        "%s rate limited; retry after %.0f s exceeds the %.0f s cap",
+                        provider.name,
+                        exc.retry_after_s,
+                        MAX_RETRY_AFTER_S,
+                    )
+                    raise
                 delay = max(delay, exc.retry_after_s)
             logger.warning(
                 "%s rate limited (try %d of %d); retrying in %.1f s",

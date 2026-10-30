@@ -75,6 +75,40 @@ async def test_rate_limit_with_retry_after() -> None:
 
 
 @respx.mock
+async def test_rate_limit_reads_retry_info_delay() -> None:
+    respx.post(URL).respond(
+        429,
+        json={
+            "error": {
+                "code": 429,
+                "message": "quota",
+                "status": "RESOURCE_EXHAUSTED",
+                "details": [
+                    {"@type": "type.googleapis.com/google.rpc.Help", "links": []},
+                    {
+                        "@type": "type.googleapis.com/google.rpc.RetryInfo",
+                        "retryDelay": "69.5s",
+                    },
+                ],
+            }
+        },
+    )
+    with pytest.raises(LLMRateLimited) as info:
+        await provider().complete(MSGS, temperature=0, max_tokens=5)
+    assert info.value.retry_after_s == 69.5
+
+
+@respx.mock
+async def test_rate_limit_without_retry_info_has_no_delay() -> None:
+    respx.post(URL).respond(
+        429, json={"error": {"code": 429, "message": "quota", "status": "RESOURCE_EXHAUSTED"}}
+    )
+    with pytest.raises(LLMRateLimited) as info:
+        await provider().complete(MSGS, temperature=0, max_tokens=5)
+    assert info.value.retry_after_s is None
+
+
+@respx.mock
 async def test_server_error_is_unavailable() -> None:
     respx.post(URL).respond(
         500, json={"error": {"code": 500, "message": "internal", "status": "INTERNAL"}}
