@@ -18,7 +18,7 @@ FRONTEND_RUN := mkdir -p frontend/node_modules frontend/.next && docker compose 
 	-e HOME=/tmp -e XDG_CACHE_HOME=/tmp/cache -e COREPACK_HOME=/tmp/corepack frontend
 
 .DEFAULT_GOAL := help
-.PHONY: help build up up-ollama down logs doctor test test-backend test-builder test-firmware test-frontend lint schemas bench bench-validate db-reset migrate
+.PHONY: help build up up-ollama ollama-pull try-understand down logs doctor test test-backend test-builder test-firmware test-frontend lint schemas bench bench-validate db-reset migrate
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  %-15s %s\n", $$1, $$2}'
@@ -72,6 +72,12 @@ lint: ## ruff check/format, pyright, eslint, tsc --noEmit
 schemas: ## Export OpenAPI + JSON Schemas and regenerate frontend types (not implemented yet)
 	@echo "schemas: not implemented yet"
 	@exit 1
+
+try-understand: ## Understand step on real requests: make try-understand [PROVIDER=ollama] [MODEL=qwen2.5:3b] [DELAY=20] [REQ='"turn the fan on above 30"'] (default: sample file)
+	$(BACKEND_RUN) uv run python scripts/try_understand.py $(if $(PROVIDER),--provider $(PROVIDER)) $(if $(MODEL),--model $(MODEL)) $(if $(DELAY),--delay $(DELAY)) $(if $(REQ),$(REQ),--file scripts/understand_samples.txt)
+
+ollama-pull: ## Pull a model into the Ollama container: make ollama-pull MODEL=qwen2.5-coder:7b
+	docker compose --profile ollama exec ollama ollama pull $(MODEL)
 
 bench: ## Run benchmark: make bench PROVIDER=gemini [TASKS=t01,t02] (not implemented yet, benchmark tasks)
 	@echo "bench: not implemented yet (benchmark tasks)"

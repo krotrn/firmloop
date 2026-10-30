@@ -9,6 +9,7 @@ from google import genai
 from google.genai import errors, types
 
 from firmloop.llm.base import (
+    OVERLOADED_STATUS_CODES,
     LLMRateLimited,
     LLMTimeout,
     LLMUnavailable,
@@ -74,7 +75,12 @@ class GeminiProvider:
         except errors.APIError as exc:
             if exc.code == 429:
                 raise LLMRateLimited(
-                    "gemini rate limited",
+                    f"gemini rate limited: {exc.message}",
+                    retry_after_s=retry_after_s(getattr(exc, "response", None)),
+                ) from exc
+            if exc.code in OVERLOADED_STATUS_CODES:
+                raise LLMRateLimited(
+                    f"gemini overloaded ({exc.code}): {exc.message}",
                     retry_after_s=retry_after_s(getattr(exc, "response", None)),
                 ) from exc
             if exc.code in TIMEOUT_STATUS_CODES:

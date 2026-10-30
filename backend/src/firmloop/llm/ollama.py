@@ -7,6 +7,7 @@ from typing import Any
 import httpx
 
 from firmloop.llm.base import (
+    OVERLOADED_STATUS_CODES,
     LLMRateLimited,
     LLMTimeout,
     LLMUnavailable,
@@ -63,6 +64,11 @@ class OllamaProvider:
             raise LLMUnavailable(f"ollama unreachable: {exc!r}") from exc
         if response.status_code == 429:
             raise LLMRateLimited("ollama rate limited", retry_after_s=retry_after_s(response))
+        if response.status_code in OVERLOADED_STATUS_CODES:
+            raise LLMRateLimited(
+                f"ollama overloaded ({response.status_code})",
+                retry_after_s=retry_after_s(response),
+            )
         if response.status_code >= 400:
             raise LLMUnavailable(f"ollama returned {response.status_code}: {response.text[:200]}")
         try:

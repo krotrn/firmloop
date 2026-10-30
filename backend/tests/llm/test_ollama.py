@@ -56,6 +56,13 @@ async def test_rate_limit() -> None:
 
 
 @respx.mock
+async def test_overloaded_is_retried_like_a_rate_limit() -> None:
+    respx.post(URL).respond(503, text="busy")
+    with pytest.raises(LLMRateLimited, match="overloaded"):
+        await provider().complete(MSGS, temperature=0, max_tokens=5)
+
+
+@respx.mock
 async def test_timeout() -> None:
     respx.post(URL).mock(side_effect=httpx.ReadTimeout("slow"))
     with pytest.raises(LLMTimeout):

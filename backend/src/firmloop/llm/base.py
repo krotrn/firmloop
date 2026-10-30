@@ -11,6 +11,8 @@ logger = logging.getLogger(__name__)
 
 # Wait before retry n (1-based) after a rate limit; the number of tries is len + 1.
 BACKOFF_DELAYS_S: tuple[float, ...] = (2.0, 4.0, 8.0, 16.0)
+# Overloaded or temporarily unavailable: retried with the same backoff as a rate limit.
+OVERLOADED_STATUS_CODES = frozenset({503, 529})
 
 
 class Message(BaseModel):

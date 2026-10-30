@@ -7,6 +7,7 @@ from typing import Any, cast
 import anthropic
 
 from firmloop.llm.base import (
+    OVERLOADED_STATUS_CODES,
     LLMRateLimited,
     LLMTimeout,
     LLMUnavailable,
@@ -84,6 +85,11 @@ class AnthropicProvider:
                 "anthropic rate limited", retry_after_s=retry_after_s(exc.response)
             ) from exc
         except anthropic.APIStatusError as exc:
+            if exc.status_code in OVERLOADED_STATUS_CODES:
+                raise LLMRateLimited(
+                    f"anthropic overloaded ({exc.status_code})",
+                    retry_after_s=retry_after_s(exc.response),
+                ) from exc
             raise LLMUnavailable(f"anthropic error {exc.status_code}: {exc.message}") from exc
         except anthropic.APIConnectionError as exc:
             raise LLMUnavailable(f"anthropic unreachable: {exc!r}") from exc

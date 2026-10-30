@@ -105,6 +105,15 @@ async def test_rate_limit_with_retry_after(server: Server) -> None:
     assert info.value.retry_after_s == 9
 
 
+@pytest.mark.parametrize("status", [503, 529])
+async def test_overloaded_is_retried_like_a_rate_limit(server: Server, status: int) -> None:
+    server.respond(
+        status, json={"type": "error", "error": {"type": "overloaded_error", "message": "busy"}}
+    )
+    with pytest.raises(LLMRateLimited, match="overloaded"):
+        await provider(server).complete(MSGS, temperature=0, max_tokens=5)
+
+
 async def test_sdk_does_not_retry_on_its_own(server: Server) -> None:
     server.respond(
         429, json={"type": "error", "error": {"type": "rate_limit_error", "message": "x"}}

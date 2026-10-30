@@ -1,0 +1,11 @@
+# Sample requests for try_understand.py --file; one per line.
+Turn the fan on when the temperature goes above 30 degrees, with a bit of hysteresis, and show the temperature on the display.
+Light the LED when it gets dark.
+Sound the buzzer when motion is detected.
+When the button is pressed, turn on the LED.
+Show temperature and humidity on the screen.
+Turn the fan on if humidity is over 70 percent.
+If motion is detected and it is dark, turn on the LED.
+Beep the buzzer when the temperature is above 40, and show HOT on the display.
+Fan on above 28 C or when humidity exceeds 80 percent.
+Make the room comfortable.

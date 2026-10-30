@@ -69,7 +69,7 @@ async def test_rate_limit_with_retry_after() -> None:
         headers={"retry-after": "7"},
         json={"error": {"code": 429, "message": "quota", "status": "RESOURCE_EXHAUSTED"}},
     )
-    with pytest.raises(LLMRateLimited) as info:
+    with pytest.raises(LLMRateLimited, match="quota") as info:
         await provider().complete(MSGS, temperature=0, max_tokens=5)
     assert info.value.retry_after_s == 7
 
@@ -77,9 +77,18 @@ async def test_rate_limit_with_retry_after() -> None:
 @respx.mock
 async def test_server_error_is_unavailable() -> None:
     respx.post(URL).respond(
-        503, json={"error": {"code": 503, "message": "overloaded", "status": "UNAVAILABLE"}}
+        500, json={"error": {"code": 500, "message": "internal", "status": "INTERNAL"}}
     )
-    with pytest.raises(LLMUnavailable, match="503"):
+    with pytest.raises(LLMUnavailable, match="500"):
+        await provider().complete(MSGS, temperature=0, max_tokens=5)
+
+
+@respx.mock
+async def test_overloaded_is_retried_like_a_rate_limit() -> None:
+    respx.post(URL).respond(
+        503, json={"error": {"code": 503, "message": "high demand", "status": "UNAVAILABLE"}}
+    )
+    with pytest.raises(LLMRateLimited, match="overloaded"):
         await provider().complete(MSGS, temperature=0, max_tokens=5)
 
 
