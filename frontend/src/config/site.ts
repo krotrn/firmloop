@@ -14,5 +14,13 @@ export const siteConfig = {
       title: "Sessions",
       href: "/",
     },
+    {
+      title: "Hardware",
+      href: "/hardware",
+    },
+    {
+      title: "Settings",
+      href: "/settings",
+    },
   ] as NavItem[],
 };
