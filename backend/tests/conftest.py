@@ -10,7 +10,7 @@ from firmloop.hardware.registry import Registry
 def real_hardware() -> Path:
     """The real hardware dir: HARDWARE_DIR (/repo/hardware in the container), else repo-relative."""
     configured = Settings(_env_file=None).hardware_dir  # pyright: ignore[reportCallIssue]
-    for candidate in (configured, Path(__file__).resolve().parents[3] / "hardware"):
+    for candidate in (configured, Path(__file__).resolve().parents[2] / "hardware"):
         if candidate.is_dir():
             return candidate
     pytest.fail("real hardware dir not found")
