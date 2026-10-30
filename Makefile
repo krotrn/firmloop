@@ -12,7 +12,7 @@ TASKS ?=
 # mkdir pre-creates the anonymous-volume mountpoints so Docker does not create them root-owned.
 # shared/ is mounted read-only so the backend tests can check the committed schemas are current.
 HOST_USER := $(shell id -u):$(shell id -g)
-BACKEND_RUN := mkdir -p backend/.venv && docker compose run --rm --user $(HOST_USER) -v $(CURDIR)/backend:/app -v /app/.venv -v $(CURDIR)/shared:/shared:ro \
+BACKEND_RUN := mkdir -p backend/.venv && docker compose run --rm --user $(HOST_USER) -v $(CURDIR)/backend:/app -v /app/.venv -v $(CURDIR)/shared:/shared:ro -v $(CURDIR)/.env.example:/.env.example:ro \
 	-e HOME=/tmp -e UV_NO_SYNC=1 -e UV_CACHE_DIR=/tmp/uv -e RUFF_CACHE_DIR=/tmp/ruff backend
 FRONTEND_RUN := mkdir -p frontend/node_modules frontend/.next && docker compose run --rm --user $(HOST_USER) -v $(CURDIR)/frontend:/app -v /app/node_modules -v /app/.next \
 	-e HOME=/tmp -e XDG_CACHE_HOME=/tmp/cache -e COREPACK_HOME=/tmp/corepack frontend
@@ -85,6 +85,6 @@ db-reset: ## Delete ./data (asks first) (not implemented yet)
 	@echo "db-reset: not implemented yet"
 	@exit 1
 
-migrate: ## Apply Alembic migrations (alembic upgrade head) (not implemented yet)
-	@echo "migrate: not implemented yet"
-	@exit 1
+migrate: ## Apply Alembic migrations (alembic upgrade head)
+	mkdir -p data
+	$(BACKEND_RUN) uv run alembic upgrade head
