@@ -97,6 +97,8 @@ db-reset: ## Delete ./data (asks first) (not implemented yet)
 	@echo "db-reset: not implemented yet"
 	@exit 1
 
-migrate: ## Apply Alembic migrations (alembic upgrade head)
+# Runs as the backend service's own user with its data volume, like the server (which also
+# migrates on startup), so the database file is always written by the same user.
+migrate: ## Apply Alembic migrations to the app database (the backend also does this on startup)
 	mkdir -p data
-	$(BACKEND_RUN) uv run alembic upgrade head
+	docker compose run --rm backend uv run --no-sync python -m firmloop.db.migrate

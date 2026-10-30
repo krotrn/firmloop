@@ -16,6 +16,7 @@ from firmloop.clients.builder import BuilderClient
 from firmloop.clients.runner import RunnerClient
 from firmloop.config import Settings
 from firmloop.db.engine import create_db_engine
+from firmloop.db.migrate import upgrade_to_head
 from firmloop.events.bus import EventBus
 from firmloop.hardware.registry import Registry
 from firmloop.targets.virtual import VirtualTarget
@@ -54,6 +55,7 @@ def create_app() -> FastAPI:
         async with AsyncExitStack() as stack:
             engine = create_db_engine(settings.database_url)
             stack.push_async_callback(engine.dispose)
+            await asyncio.to_thread(upgrade_to_head, settings.database_url)
             registry = await asyncio.to_thread(Registry.load, settings.hardware_dir)
             header = await asyncio.to_thread(load_api_header, settings.firmware_dir)
             runner = RunnerClient(base_url=settings.runner_url)

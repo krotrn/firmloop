@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from firmloop import main
 from firmloop.agent.templates import API_HEADER_PATH
+from firmloop.db import repo
 from firmloop.db.engine import create_db_engine
 from firmloop.db.migrate import upgrade_to_head
 from firmloop.hardware.registry import RegistryError
@@ -85,11 +86,23 @@ def test_lifespan_starts_the_orchestrator_and_releases_everything(
     assert disposed_engines() == 1
 
 
+def test_startup_migrates_a_fresh_database(disposed_engines: Callable[[], int]) -> None:
+    # no upgrade_to_head here: the lifespan must create the tables itself
+    with TestClient(create_app()) as client:
+        assert client.post("/api/sessions").status_code == 201
+        assert client.get("/api/sessions").status_code == 200
+
+    assert disposed_engines() == 1
+
+
 def test_startup_fails_when_recovery_fails_and_releases_what_it_made(
-    disposed_engines: Callable[[], int],
+    disposed_engines: Callable[[], int], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # the database is not migrated, so marking interrupted runs fails
-    with pytest.raises(Exception, match="no such table"):
+    async def broken(engine: AsyncEngine) -> None:
+        raise RuntimeError("recovery broke")
+
+    monkeypatch.setattr(repo, "recover_after_restart", broken)
+    with pytest.raises(RuntimeError, match="recovery broke"):
         with TestClient(create_app()):
             pytest.fail("the server must not start")
 
