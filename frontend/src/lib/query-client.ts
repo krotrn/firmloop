@@ -4,6 +4,8 @@ import {
   isServer,
 } from "@tanstack/react-query";
 
+import { isApiError } from "@/lib/fetcher";
+
 function makeQueryClient() {
   return new QueryClient({
     defaultOptions: {
@@ -12,15 +14,8 @@ function makeQueryClient() {
         gcTime: 5 * 60 * 1000, // 5 minutes
         retry: (failureCount, error) => {
           // Do not retry 4xx errors
-          if (
-            error instanceof Error &&
-            "status" in error &&
-            typeof (error as { status: number }).status === "number"
-          ) {
-            const status = (error as { status: number }).status;
-            if (status >= 400 && status < 500) {
-              return false;
-            }
+          if (isApiError(error) && error.status >= 400 && error.status < 500) {
+            return false;
           }
           return failureCount < 2;
         },

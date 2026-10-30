@@ -14,8 +14,11 @@ TASKS ?=
 HOST_USER := $(shell id -u):$(shell id -g)
 BACKEND_RUN := mkdir -p backend/.venv && docker compose run --rm --user $(HOST_USER) -v $(CURDIR)/backend:/app -v /app/.venv -v $(CURDIR)/shared:/shared:ro -v $(CURDIR)/.env.example:/.env.example:ro \
 	-e HOME=/tmp -e UV_NO_SYNC=1 -e UV_CACHE_DIR=/tmp/uv -e RUFF_CACHE_DIR=/tmp/ruff backend
-FRONTEND_RUN := mkdir -p frontend/node_modules frontend/.next && docker compose run --rm --user $(HOST_USER) -v $(CURDIR)/frontend:/app -v /app/node_modules -v /app/.next \
-	-e HOME=/tmp -e XDG_CACHE_HOME=/tmp/cache -e COREPACK_HOME=/tmp/corepack frontend
+FRONTEND_RUN_BASE := mkdir -p frontend/node_modules frontend/.next && docker compose run --rm --user $(HOST_USER) -v $(CURDIR)/frontend:/app -v /app/node_modules -v /app/.next \
+	-e HOME=/tmp -e XDG_CACHE_HOME=/tmp/cache -e COREPACK_HOME=/tmp/corepack
+FRONTEND_RUN := $(FRONTEND_RUN_BASE) frontend
+# Same, with shared/ mounted read-only for the type generator.
+FRONTEND_SHARED_RUN := $(FRONTEND_RUN_BASE) -v $(CURDIR)/shared:/shared:ro frontend
 
 .DEFAULT_GOAL := help
 .PHONY: help build up up-ollama ollama-pull try-understand down logs doctor test test-backend test-builder test-firmware test-frontend lint schemas bench bench-validate db-reset migrate
@@ -62,16 +65,19 @@ test-firmware: ## Firmware harness + library self-tests in the runner image
 test-frontend: ## Frontend vitest inside the frontend container
 	$(FRONTEND_RUN) node_modules/.bin/vitest run
 
-lint: ## ruff check/format, pyright, eslint, tsc --noEmit
+lint: ## ruff check/format, pyright, generated-types check, eslint, prettier --check, tsc --noEmit
 	$(BACKEND_RUN) uv run ruff check .
 	$(BACKEND_RUN) uv run ruff format --check .
 	$(BACKEND_RUN) uv run pyright
+	$(FRONTEND_SHARED_RUN) node scripts/codegen.mjs --schemas /shared/schemas --check
 	$(FRONTEND_RUN) node_modules/.bin/eslint
+	$(FRONTEND_RUN) node_modules/.bin/prettier --check .
 	$(FRONTEND_RUN) node_modules/.bin/tsc --noEmit --incremental false
 
-schemas: ## Export OpenAPI + JSON Schemas to shared/schemas
+schemas: ## Export OpenAPI + JSON Schemas, regenerate frontend types
 	mkdir -p backend/.venv shared/schemas && docker compose run --rm --user $(HOST_USER) -v $(CURDIR)/backend:/app -v /app/.venv -v $(CURDIR)/shared:/shared -v $(CURDIR)/.env.example:/.env.example:ro \
 		-e HOME=/tmp -e UV_NO_SYNC=1 -e UV_CACHE_DIR=/tmp/uv backend uv run python scripts/export_schemas.py /shared/schemas
+	$(FRONTEND_SHARED_RUN) node scripts/codegen.mjs --schemas /shared/schemas
 
 try-understand: ## Understand step on real requests: make try-understand [PROVIDER=ollama] [MODEL=qwen2.5:3b] [DELAY=20] [REQ='"turn the fan on above 30"'] (default: sample file)
 	$(BACKEND_RUN) uv run python scripts/try_understand.py $(if $(PROVIDER),--provider $(PROVIDER)) $(if $(MODEL),--model $(MODEL)) $(if $(DELAY),--delay $(DELAY)) $(if $(REQ),$(REQ),--file scripts/understand_samples.txt)

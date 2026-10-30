@@ -3,8 +3,16 @@ import { renderHook, waitFor } from "@testing-library/react";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { healthService } from "@/services/health.service";
+import { healthService, type Health } from "@/services/health.service";
 import { useHealthQuery } from "./use-health";
+
+const health: Health = {
+  ok: true,
+  services: { builder: "ok", device: "ok", llm: "ok", runner: "ok" },
+  lib_version: "0.1.0",
+  proto: 1,
+  warnings: [],
+};
 
 const createWrapper = () => {
   const queryClient = new QueryClient({
@@ -24,7 +32,7 @@ describe("useHealthQuery", () => {
   });
 
   it("fetches and returns the health payload", async () => {
-    vi.spyOn(healthService, "getHealth").mockResolvedValueOnce({ ok: true });
+    vi.spyOn(healthService, "getHealth").mockResolvedValueOnce(health);
 
     const { result } = renderHook(() => useHealthQuery(), {
       wrapper: createWrapper(),
@@ -32,6 +40,6 @@ describe("useHealthQuery", () => {
 
     expect(result.current.isPending).toBe(true);
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toEqual({ ok: true });
+    expect(result.current.data).toEqual(health);
   });
 });

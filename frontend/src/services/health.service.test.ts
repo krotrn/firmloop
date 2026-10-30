@@ -1,7 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { FetchError } from "@/lib/fetcher";
-import { healthService } from "@/services/health.service";
+import { ApiError } from "@/lib/fetcher";
+import { healthService, type Health } from "@/services/health.service";
+
+const health: Health = {
+  ok: true,
+  services: { builder: "ok", device: "ok", llm: "ok", runner: "ok" },
+  lib_version: "0.1.0",
+  proto: 1,
+  warnings: [],
+};
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -16,14 +24,12 @@ describe("healthService.getHealth", () => {
   });
 
   it("GETs the backend health URL and returns the parsed body", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(jsonResponse({ ok: true, version: "0.1.0" }));
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(health));
     vi.stubGlobal("fetch", fetchMock);
 
     const result = await healthService.getHealth();
 
-    expect(result).toEqual({ ok: true, version: "0.1.0" });
+    expect(result).toEqual(health);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
       "http://127.0.0.1:8000/api/health"
@@ -31,7 +37,7 @@ describe("healthService.getHealth", () => {
   });
 
   it("does not send a Content-Type header on a bodyless GET (avoids a CORS preflight)", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ ok: true }));
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(health));
     vi.stubGlobal("fetch", fetchMock);
 
     await healthService.getHealth();
@@ -41,18 +47,21 @@ describe("healthService.getHealth", () => {
     expect(headers.has("Content-Type")).toBe(false);
   });
 
-  it("throws FetchError on a non-2xx response", async () => {
+  it("throws ApiError on a non-2xx response", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(jsonResponse({ detail: "boom" }, 500))
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(
+            { error: { code: "INTERNAL", message: "boom", details: {} } },
+            500
+          )
+        )
     );
     const err = await healthService.getHealth().catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(FetchError);
-    expect((err as FetchError).status).toBe(500);
-  });
-
-  it("rejects a schema-invalid body", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ foo: 1 })));
-    await expect(healthService.getHealth()).rejects.toThrow();
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(500);
+    expect((err as ApiError).code).toBe("INTERNAL");
   });
 });

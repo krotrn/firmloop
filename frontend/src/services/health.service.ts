@@ -1,17 +1,10 @@
-import { z } from "zod";
-
 import { env } from "@/config/env";
 import { fetcher } from "@/lib/fetcher";
+import type { components } from "@/types/generated/api";
 
-// TODO: replace this hand-written schema with the generated type.
-export const healthSchema = z.looseObject({ ok: z.boolean() });
-export type Health = z.infer<typeof healthSchema>;
+export type Health = components["schemas"]["HealthOut"];
 
 export const healthService = {
-  getHealth: async (): Promise<Health> => {
-    const body = await fetcher<unknown>(
-      `${env.NEXT_PUBLIC_API_URL}/api/health`
-    );
-    return healthSchema.parse(body);
-  },
+  getHealth: (): Promise<Health> =>
+    fetcher<Health>(`${env.NEXT_PUBLIC_API_URL}/api/health`),
 };
