@@ -104,7 +104,7 @@ services:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8103/health', timeout=3)"]
 
   ollama:
-    image: ollama/ollama:0.40.12
+    image: ollama/ollama:0.40.13
     profiles: [ollama]
     volumes:
       - ollama:/root/.ollama
