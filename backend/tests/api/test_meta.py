@@ -164,6 +164,15 @@ async def test_hardware_channel_carries_the_spec_fields(
         assert out["injectable"] == channel.injectable
 
 
+async def test_hardware_gives_each_component_its_ai_notes(
+    client: httpx.AsyncClient, registry: Registry
+) -> None:
+    body = (await client.get("/api/hardware")).json()
+    for component in body["components"]:
+        assert component["ai_notes"] == registry.notes(component["id"])
+        assert component["ai_notes"].strip()
+
+
 async def test_hardware_gives_rows_and_cols_for_display_channels_only(
     client: httpx.AsyncClient, registry: Registry
 ) -> None:

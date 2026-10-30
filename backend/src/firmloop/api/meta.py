@@ -5,7 +5,7 @@ import logging
 from typing import Annotated, Any, Literal, Protocol, cast
 
 from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel, SerializerFunctionWrapHandler, model_serializer
+from pydantic import BaseModel, Field
 
 from firmloop.api.deps import EngineDep, EnvDep, RegistryDep, RunnerDep
 from firmloop.api.errors import ERROR_RESPONSES
@@ -55,6 +55,7 @@ class ComponentOut(BaseModel):
     kind: Kind
     pins: dict[str, int]
     channels: list[str]
+    ai_notes: str
 
 
 class ChannelOut(BaseModel):
@@ -67,16 +68,9 @@ class ChannelOut(BaseModel):
     neutral: float | int | bool | str | None
     default_hysteresis: float | None
     injectable: bool
-    rows: int | None = None
-    cols: int | None = None
-
-    @model_serializer(mode="wrap")
-    def _drop_missing_size(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
-        data = cast("dict[str, Any]", handler(self))
-        for key in ("rows", "cols"):
-            if data.get(key) is None:
-                data.pop(key, None)
-        return data
+    # Only display channels have a size; the keys are left out for every other channel.
+    rows: int | None = Field(default=None, exclude_if=lambda v: v is None)
+    cols: int | None = Field(default=None, exclude_if=lambda v: v is None)
 
 
 class HardwareOut(BaseModel):
@@ -125,6 +119,7 @@ def _hardware(registry: Registry) -> HardwareOut:
             kind=m.kind,
             pins=m.pins,
             channels=[c.id for c in m.channels],
+            ai_notes=registry.notes(m.id),
         )
         for m in registry.components.values()
     ]

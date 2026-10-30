@@ -452,8 +452,33 @@ export interface components {
             /** Tests Total */
             tests_total: number | null;
         };
+        /** ChannelOut */
         ChannelOut: {
-            [key: string]: unknown;
+            /** Cols */
+            cols?: number | null;
+            /** Default Hysteresis */
+            default_hysteresis: number | null;
+            /** Id */
+            id: string;
+            /** Injectable */
+            injectable: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "sensor" | "actuator" | "display";
+            /** Neutral */
+            neutral: number | boolean | string | null;
+            /** Range */
+            range: number[] | null;
+            /** Resolution */
+            resolution: number | null;
+            /** Rows */
+            rows?: number | null;
+            /** Type */
+            type: string;
+            /** Unit */
+            unit: string | null;
         };
         /** CommandOut */
         CommandOut: {
@@ -465,6 +490,8 @@ export interface components {
         };
         /** ComponentOut */
         ComponentOut: {
+            /** Ai Notes */
+            ai_notes: string;
             /** Channels */
             channels: string[];
             /** Id */
@@ -3422,6 +3449,7 @@ type ReadonlyArray<T> = [
     unknown[]
 ] ? Readonly<Exclude<T, undefined>> : Readonly<Exclude<T, undefined>[]>;
 export const pathsApiSessionsSession_idVersionsGetParametersQueryStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/sessions/{session_id}/versions"]["get"]["parameters"]["query"]["status"]> = ["candidate", "promoted", "rejected"];
+export const channelOutKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ChannelOut"]["kind"]> = ["sensor", "actuator", "display"];
 export const componentOutKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ComponentOut"]["kind"]> = ["sensor", "actuator", "display"];
 export const conditionOpValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Condition"]["op"]> = ["gt", "gte", "lt", "lte", "eq"];
 export const createRunBodyInput_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CreateRunBody"]["input_mode"]> = ["text", "voice"];

@@ -265,7 +265,130 @@
         "type": "object"
       },
       "ChannelOut": {
-        "additionalProperties": true,
+        "properties": {
+          "cols": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cols"
+          },
+          "default_hysteresis": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Hysteresis"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "injectable": {
+            "title": "Injectable",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "sensor",
+              "actuator",
+              "display"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "neutral": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Neutral"
+          },
+          "range": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Range"
+          },
+          "resolution": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution"
+          },
+          "rows": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rows"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "kind",
+          "unit",
+          "range",
+          "resolution",
+          "neutral",
+          "default_hysteresis",
+          "injectable"
+        ],
+        "title": "ChannelOut",
         "type": "object"
       },
       "CommandOut": {
@@ -282,6 +405,10 @@
       },
       "ComponentOut": {
         "properties": {
+          "ai_notes": {
+            "title": "Ai Notes",
+            "type": "string"
+          },
           "channels": {
             "items": {
               "type": "string"
@@ -319,7 +446,8 @@
           "name",
           "kind",
           "pins",
-          "channels"
+          "channels",
+          "ai_notes"
         ],
         "title": "ComponentOut",
         "type": "object"

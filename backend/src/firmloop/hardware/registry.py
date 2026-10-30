@@ -105,6 +105,10 @@ class Registry:
             raise RegistryError(problems)
         return cls(components, channels, notes)
 
+    def notes(self, component_id: str) -> str:
+        """The component's ``ai_notes.md``."""
+        return self._notes[component_id]
+
     def ai_notes(self) -> str:
         """Concatenated ``ai_notes.md`` of all components (sorted by id), for prompts."""
         return "\n".join(self._notes[cid] for cid in sorted(self._notes))

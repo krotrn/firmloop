@@ -97,6 +97,22 @@ def test_openapi_document(tmp_path: Path) -> None:
     assert "/api/sessions" in doc["paths"]
 
 
+def test_openapi_models_keep_their_fields(tmp_path: Path) -> None:
+    # A model exported as a bare open object gives the frontend no field types at all.
+    load().export(tmp_path)
+    doc = json.loads((tmp_path / "openapi.json").read_text(encoding="utf-8"))
+    schemas = doc["components"]["schemas"]
+    open_objects = [
+        name
+        for name, schema in schemas.items()
+        if schema.get("type") == "object" and "properties" not in schema
+    ]
+    assert open_objects == []
+    channel = schemas["ChannelOut"]
+    assert {"id", "type", "kind", "range", "resolution", "injectable"} <= set(channel["required"])
+    assert {"rows", "cols"} <= set(channel["properties"])
+
+
 @pytest.mark.parametrize("name", FILES)
 def test_committed_schema_is_current(name: str, tmp_path: Path) -> None:
     committed = _PATH.parents[2] / "shared" / "schemas" / name
