@@ -5,9 +5,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   sessionsQueryKeys,
+  useArchiveSession,
   useCreateSession,
+  useSession,
   useSessions,
+  useUpdateSession,
 } from "@/hooks/queries/use-sessions";
+import { ApiError } from "@/lib/fetcher";
 import { sessionsService, type Session } from "@/services/sessions.service";
 
 const make = (id: string): Session => ({
@@ -71,5 +75,68 @@ describe("sessions hooks", () => {
       await result.current.mutateAsync();
     });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["sessions"] });
+  });
+
+  it("exposes the detail key", () => {
+    expect(sessionsQueryKeys.detail("s1")).toEqual(["sessions", "s1"]);
+  });
+
+  it("loads one session", async () => {
+    const get = vi
+      .spyOn(sessionsService, "getSession")
+      .mockResolvedValue(make("s1"));
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useSession("s1"), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(get).toHaveBeenCalledWith("s1");
+    expect(result.current.data?.id).toBe("s1");
+  });
+
+  it("does not retry a 404", async () => {
+    const get = vi
+      .spyOn(sessionsService, "getSession")
+      .mockRejectedValue(new ApiError(404, "NOT_FOUND", "no session"));
+    const queryClient = new QueryClient();
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useSession("x"), { wrapper });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  it("sets the detail data and invalidates the list after a rename", async () => {
+    const renamed = { ...make("s1"), title: "New title" };
+    const update = vi
+      .spyOn(sessionsService, "updateSession")
+      .mockResolvedValue(renamed);
+    const { queryClient, wrapper } = setup();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHook(() => useUpdateSession("s1"), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({ title: "New title" });
+    });
+    expect(update).toHaveBeenCalledWith("s1", { title: "New title" });
+    expect(queryClient.getQueryData(["sessions", "s1"])).toEqual(renamed);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["sessions"] });
+  });
+
+  it("archives and invalidates the list", async () => {
+    const archive = vi
+      .spyOn(sessionsService, "archiveSession")
+      .mockResolvedValue(undefined);
+    const { queryClient, wrapper } = setup();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHook(() => useArchiveSession("s1"), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync();
+    });
+    expect(archive).toHaveBeenCalledWith("s1");
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ["sessions"],
+      exact: true,
+    });
   });
 });

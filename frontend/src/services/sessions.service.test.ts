@@ -106,3 +106,42 @@ describe("sessionsService.createSession", () => {
     expect(init.body).toBe("{}");
   });
 });
+
+describe("sessionsService.updateSession", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("PATCHes the body to the encoded session url", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(session));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      sessionsService.updateSession("s 1", { title: "New" })
+    ).resolves.toEqual(session);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://127.0.0.1:8000/api/sessions/s%201");
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body as string)).toEqual({ title: "New" });
+  });
+});
+
+describe("sessionsService.archiveSession", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("DELETEs the session and resolves with nothing on 204", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      sessionsService.archiveSession("s 1")
+    ).resolves.toBeUndefined();
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://127.0.0.1:8000/api/sessions/s%201");
+    expect(init.method).toBe("DELETE");
+  });
+});

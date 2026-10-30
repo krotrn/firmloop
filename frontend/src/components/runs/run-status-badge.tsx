@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { isTerminal, isWaiting, isWorking } from "@/lib/run-status";
 import { cn } from "@/lib/utils";
 
 type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
@@ -9,35 +10,51 @@ interface StatusStyle {
   className?: string;
 }
 
-const working = (label: string): StatusStyle => ({
-  label,
-  variant: "outline",
-  className: "motion-safe:animate-pulse",
-});
-
-const waiting: StatusStyle = {
-  label: "Needs you",
-  variant: "outline",
-  className:
-    "border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-amber-400",
+const LABELS: Record<string, string> = {
+  pending: "Queued",
+  understanding: "Understanding",
+  generating_tests: "Writing tests",
+  coding: "Coding",
+  checking: "Checking",
+  native_testing: "Testing",
+  building: "Building",
+  flashing: "Flashing",
+  verifying: "Verifying",
+  succeeded: "Succeeded",
+  failed: "Failed",
+  cancelled: "Cancelled",
 };
 
-const STATUS_STYLES: Record<string, StatusStyle> = {
-  pending: working("Queued"),
-  understanding: working("Understanding"),
-  awaiting_answer: waiting,
-  awaiting_confirmation: waiting,
-  generating_tests: working("Writing tests"),
-  coding: working("Coding"),
-  checking: working("Checking"),
-  native_testing: working("Testing"),
-  building: working("Building"),
-  flashing: working("Flashing"),
-  verifying: working("Verifying"),
-  succeeded: { label: "Succeeded", variant: "default" },
-  failed: { label: "Failed", variant: "destructive" },
-  cancelled: { label: "Cancelled", variant: "secondary" },
+const TERMINAL_VARIANTS: Record<string, BadgeVariant> = {
+  succeeded: "default",
+  failed: "destructive",
+  cancelled: "secondary",
 };
+
+function styleFor(status: string): StatusStyle | undefined {
+  if (isWorking(status)) {
+    return {
+      label: LABELS[status] ?? status,
+      variant: "outline",
+      className: "motion-safe:animate-pulse",
+    };
+  }
+  if (isWaiting(status)) {
+    return {
+      label: "Needs you",
+      variant: "outline",
+      className:
+        "border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-amber-400",
+    };
+  }
+  if (isTerminal(status)) {
+    return {
+      label: LABELS[status] ?? status,
+      variant: TERMINAL_VARIANTS[status] ?? "outline",
+    };
+  }
+  return undefined;
+}
 
 export function RunStatusBadge({
   status,
@@ -46,9 +63,7 @@ export function RunStatusBadge({
   status: string;
   className?: string;
 }) {
-  const style = Object.hasOwn(STATUS_STYLES, status)
-    ? STATUS_STYLES[status]
-    : undefined;
+  const style = styleFor(status);
   if (!style) {
     return (
       <Badge variant="outline" className={className}>

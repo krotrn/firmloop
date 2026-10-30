@@ -11,7 +11,8 @@ import type { ServerEvent } from "@/types/generated/events";
 const MAX_RUN_EVENTS = 1000;
 const RUN_EVENT_PREFIXES = ["run.", "attempt.", "deploy.", "verify."];
 
-function sessionOf(event: ServerEvent): string | null {
+/** The session an event belongs to, or null for events without one. */
+export function sessionOf(event: ServerEvent): string | null {
   if (event.type === "run.created") {
     const id: unknown = event.run.session_id;
     return typeof id === "string" ? id : null;

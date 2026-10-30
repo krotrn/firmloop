@@ -6,6 +6,8 @@ export type Session = components["schemas"]["SessionOut"];
 
 export type SessionList = components["schemas"]["SessionList"];
 
+export type PatchSessionBody = components["schemas"]["PatchSessionBody"];
+
 export interface ListSessionsParams {
   cursor?: string | null;
   limit?: number;
@@ -33,5 +35,17 @@ export const sessionsService = {
   getSession: (id: string): Promise<Session> =>
     fetcher<Session>(
       `${env.NEXT_PUBLIC_API_URL}/api/sessions/${encodeURIComponent(id)}`
+    ),
+
+  updateSession: (id: string, body: PatchSessionBody): Promise<Session> =>
+    fetcher<Session>(
+      `${env.NEXT_PUBLIC_API_URL}/api/sessions/${encodeURIComponent(id)}`,
+      { method: "PATCH", body: JSON.stringify(body) }
+    ),
+
+  archiveSession: (id: string): Promise<void> =>
+    fetcher<void>(
+      `${env.NEXT_PUBLIC_API_URL}/api/sessions/${encodeURIComponent(id)}`,
+      { method: "DELETE" }
     ),
 };
