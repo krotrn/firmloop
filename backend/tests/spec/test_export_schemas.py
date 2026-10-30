@@ -74,6 +74,16 @@ def test_events_schema_covers_every_union_member(tmp_path: Path) -> None:
             assert member in defs
 
 
+def test_events_require_every_field_that_is_always_sent(tmp_path: Path) -> None:
+    load().export(tmp_path)
+    defs = json.loads((tmp_path / "events.schema.json").read_text(encoding="utf-8"))["$defs"]
+    for member in _members(server_event_adapter):
+        assert {"type", "ts"} <= set(defs[member]["required"]), member
+    assert {"server", "proto"} <= set(defs["HelloEvent"]["required"])
+    for member in _members(client_message_adapter):
+        assert "type" in defs[member]["required"], member
+
+
 def test_events_schema_rejects_conflicting_defs() -> None:
     mod = load()
     with pytest.raises(ValueError, match="Dup"):

@@ -311,7 +311,10 @@ class Phases:
         self.d.bus.publish(event, session_id)
 
     def log(self, run: Run, level: Literal["info", "warn", "error"], message: str) -> None:
-        self.publish(RunLogEvent(run_id=run.id, level=level, message=message), run.session_id)
+        self.publish(
+            RunLogEvent(run_id=run.id, session_id=run.session_id, level=level, message=message),
+            run.session_id,
+        )
 
     async def settings(self) -> Settings:
         return await repo.get_settings(self.d.engine, self.d.env)
@@ -595,6 +598,7 @@ class Phases:
                 events=[
                     RunQuestionEvent(
                         run_id=run.id,
+                        session_id=run.session_id,
                         question=QuestionPayload(
                             question=question.question, reason=question.reason
                         ),
@@ -612,6 +616,7 @@ class Phases:
         auto = settings.auto_approve and not is_destructive(diff)
         proposed = RunSpecProposedEvent(
             run_id=run.id,
+            session_id=run.session_id,
             spec=spec,
             spec_diff=diff,
             boundaries=describe_boundaries(spec, self.d.registry),
@@ -651,6 +656,7 @@ class Phases:
         )
         event = RunTestsGeneratedEvent(
             run_id=run.id,
+            session_id=run.session_id,
             total=len(tests),
             by_origin=counts,
             from_base=sum(1 for t in tests if t.from_base),
@@ -671,7 +677,9 @@ class Phases:
         number = attempt.number
         self._attempt_started.setdefault(run.id, {})[attempt.id] = self.d.clock()
         self.publish(
-            AttemptStartedEvent(run_id=run.id, attempt_id=attempt.id, number=number),
+            AttemptStartedEvent(
+                run_id=run.id, session_id=run.session_id, attempt_id=attempt.id, number=number
+            ),
             run.session_id,
         )
         base = await self.base_version(run)
@@ -703,7 +711,14 @@ class Phases:
             change=llm,
             attempt_id=attempt.id,
             attempt=repo.AttemptChange(code=result.code, stage_reached="generated"),
-            events=[AttemptCodeEvent(run_id=run.id, attempt_id=attempt.id, code=result.code)],
+            events=[
+                AttemptCodeEvent(
+                    run_id=run.id,
+                    session_id=run.session_id,
+                    attempt_id=attempt.id,
+                    code=result.code,
+                )
+            ],
         )
 
     async def checking(self, run: Run) -> None:
@@ -712,7 +727,11 @@ class Phases:
             raise AppError(ErrorCode.INTERNAL, "The attempt has no code to check.")
         report = await asyncio.to_thread(check, attempt.code, self.d.registry)
         event = AttemptSafetyEvent(
-            run_id=run.id, attempt_id=attempt.id, ok=report.ok, violations=report.violations
+            run_id=run.id,
+            session_id=run.session_id,
+            attempt_id=attempt.id,
+            ok=report.ok,
+            violations=report.violations,
         )
         stage = repo.AttemptChange(
             stage_reached="safety", safety_ok=report.ok, safety_violations=report.violations
@@ -735,7 +754,11 @@ class Phases:
         tests = repo.run_tests(run)
         result = await self._native_test(attempt.code, tests)
         compiled = AttemptCompileEvent(
-            run_id=run.id, attempt_id=attempt.id, ok=result.compile_ok, log=result.compile_log
+            run_id=run.id,
+            session_id=run.session_id,
+            attempt_id=attempt.id,
+            ok=result.compile_ok,
+            log=result.compile_log,
         )
         if not result.compile_ok:
             await self._retry_or_fail(
@@ -760,7 +783,12 @@ class Phases:
             test_results=results,
         )
         tested = AttemptTestsEvent(
-            run_id=run.id, attempt_id=attempt.id, passed=passed, total=len(tests), results=results
+            run_id=run.id,
+            session_id=run.session_id,
+            attempt_id=attempt.id,
+            passed=passed,
+            total=len(tests),
+            results=results,
         )
         if passed == len(tests):
             await self.move(
@@ -888,6 +916,7 @@ class Phases:
             events=[
                 RunLogEvent(
                     run_id=run.id,
+                    session_id=run.session_id,
                     level="info",
                     message="Virtual device: no ESP32 build needed.",
                 )
@@ -903,10 +932,17 @@ class Phases:
             await target.load(version)
         except AppError as exc:
             self.publish(
-                DeployFlashEvent(run_id=run.id, ok=False, message=exc.message), run.session_id
+                DeployFlashEvent(
+                    run_id=run.id, session_id=run.session_id, ok=False, message=exc.message
+                ),
+                run.session_id,
             )
             raise
-        await self.move(run, "verifying", events=[DeployFlashEvent(run_id=run.id, ok=True)])
+        await self.move(
+            run,
+            "verifying",
+            events=[DeployFlashEvent(run_id=run.id, session_id=run.session_id, ok=True)],
+        )
         await self.publish_device_status()
 
     async def verifying(self, run: Run) -> None:
@@ -927,7 +963,11 @@ class Phases:
             )
             self.publish(
                 VerifyCheckEvent(
-                    run_id=run.id, kind=result.kind, status=result.status, details=result.details
+                    run_id=run.id,
+                    session_id=run.session_id,
+                    kind=result.kind,
+                    status=result.status,
+                    details=result.details,
                 ),
                 run.session_id,
             )

@@ -46,7 +46,7 @@ def render_events_schema() -> str:
         ("ServerEvent", server_event_adapter),
         ("ClientMessage", client_message_adapter),
     ):
-        schema = adapter.json_schema(ref_template="#/$defs/{model}")
+        schema = adapter.json_schema(ref_template="#/$defs/{model}", mode="serialization")
         merge_defs(defs, schema.pop("$defs"))
         merge_defs(defs, {name: schema})
     document = {

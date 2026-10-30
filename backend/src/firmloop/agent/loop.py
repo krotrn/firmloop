@@ -184,10 +184,16 @@ class RunOrchestrator:
         run = await self._start(work, cancel_waiting)
         (attempt,) = await repo.get_attempts(self._engine, run.id)
         self._bus.publish(
-            AttemptStartedEvent(run_id=run.id, attempt_id=attempt.id, number=1), run.session_id
+            AttemptStartedEvent(
+                run_id=run.id, session_id=run.session_id, attempt_id=attempt.id, number=1
+            ),
+            run.session_id,
         )
         self._bus.publish(
-            AttemptCodeEvent(run_id=run.id, attempt_id=attempt.id, code=code), run.session_id
+            AttemptCodeEvent(
+                run_id=run.id, session_id=run.session_id, attempt_id=attempt.id, code=code
+            ),
+            run.session_id,
         )
         self.resume(run.id)
         return run

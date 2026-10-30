@@ -108,6 +108,10 @@ async def test_happy_path_event_sequence(engine: AsyncEngine, registry: Registry
     assert all(
         sid == h.session_id for e, sid in h.bus.events if e.type.startswith(("run.", "attempt."))
     )
+    scoped = ("run.", "attempt.", "deploy.", "verify.")
+    carried = [e for e, _ in h.bus.events if e.type.startswith(scoped) and e.type != "run.created"]
+    assert {e.type for e in carried} >= {"run.log", "attempt.started", "verify.check"}
+    assert {e.session_id for e in carried} == {h.session_id}  # pyright: ignore[reportAttributeAccessIssue]
     tests_event = h.bus.of("run.tests_generated")[0]
     assert (tests_event.total, tests_event.by_origin.scenario, tests_event.from_base) == (1, 1, 0)
     finished = h.bus.of("run.finished")[0]

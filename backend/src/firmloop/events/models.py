@@ -19,7 +19,8 @@ def _now() -> datetime:
 
 
 class _Event(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    # The exported schema describes events as sent, where defaulted fields are always present.
+    model_config = ConfigDict(extra="forbid", json_schema_serialization_defaults_required=True)
 
     ts: datetime = Field(default_factory=_now)
 
@@ -65,6 +66,7 @@ class RunStatusEvent(_Event):
 class RunLogEvent(_Event):
     type: Literal["run.log"] = "run.log"
     run_id: str
+    session_id: str
     level: Literal["info", "warn", "error"]
     message: str
 
@@ -72,12 +74,14 @@ class RunLogEvent(_Event):
 class RunQuestionEvent(_Event):
     type: Literal["run.question"] = "run.question"
     run_id: str
+    session_id: str
     question: Question
 
 
 class RunSpecProposedEvent(_Event):
     type: Literal["run.spec_proposed"] = "run.spec_proposed"
     run_id: str
+    session_id: str
     spec: Spec
     spec_diff: SpecDiff | None = None
     boundaries: list[str] = Field(default_factory=list)
@@ -93,6 +97,7 @@ class ByOrigin(BaseModel):
 class RunTestsGeneratedEvent(_Event):
     type: Literal["run.tests_generated"] = "run.tests_generated"
     run_id: str
+    session_id: str
     total: int
     by_origin: ByOrigin
     from_base: int = 0
@@ -101,6 +106,7 @@ class RunTestsGeneratedEvent(_Event):
 class AttemptStartedEvent(_Event):
     type: Literal["attempt.started"] = "attempt.started"
     run_id: str
+    session_id: str
     attempt_id: str
     number: int
 
@@ -108,6 +114,7 @@ class AttemptStartedEvent(_Event):
 class AttemptCodeEvent(_Event):
     type: Literal["attempt.code"] = "attempt.code"
     run_id: str
+    session_id: str
     attempt_id: str
     code: str
 
@@ -115,6 +122,7 @@ class AttemptCodeEvent(_Event):
 class AttemptSafetyEvent(_Event):
     type: Literal["attempt.safety"] = "attempt.safety"
     run_id: str
+    session_id: str
     attempt_id: str
     ok: bool
     violations: list[Violation] = Field(default_factory=list[Violation])
@@ -123,6 +131,7 @@ class AttemptSafetyEvent(_Event):
 class AttemptCompileEvent(_Event):
     type: Literal["attempt.compile"] = "attempt.compile"
     run_id: str
+    session_id: str
     attempt_id: str
     ok: bool
     log: str = ""
@@ -131,6 +140,7 @@ class AttemptCompileEvent(_Event):
 class AttemptTestsEvent(_Event):
     type: Literal["attempt.tests"] = "attempt.tests"
     run_id: str
+    session_id: str
     attempt_id: str
     passed: int
     total: int
@@ -140,6 +150,7 @@ class AttemptTestsEvent(_Event):
 class DeployBuildEvent(_Event):
     type: Literal["deploy.build"] = "deploy.build"
     run_id: str
+    session_id: str
     ok: bool
     size: int | None = None
     log: str | None = None
@@ -148,6 +159,7 @@ class DeployBuildEvent(_Event):
 class DeployFlashEvent(_Event):
     type: Literal["deploy.flash"] = "deploy.flash"
     run_id: str
+    session_id: str
     ok: bool
     message: str | None = None
 
@@ -155,6 +167,7 @@ class DeployFlashEvent(_Event):
 class VerifyCheckEvent(_Event):
     type: Literal["verify.check"] = "verify.check"
     run_id: str
+    session_id: str
     kind: Literal["hello", "self_check", "onboard_test"]
     status: Literal["passed", "failed", "skipped_virtual"]
     details: str | JsonObject | None = None
@@ -249,16 +262,21 @@ ServerEvent = Annotated[
 server_event_adapter: TypeAdapter[ServerEvent] = TypeAdapter(ServerEvent)
 
 
-class SubscribeMessage(BaseModel):
+class _Message(BaseModel):
+    # Clients must always send `type`; the exported schema marks defaulted fields required.
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+
+class SubscribeMessage(_Message):
     type: Literal["subscribe"] = "subscribe"
     session_id: str = Field(min_length=1, max_length=64)
 
 
-class UnsubscribeMessage(BaseModel):
+class UnsubscribeMessage(_Message):
     type: Literal["unsubscribe"] = "unsubscribe"
 
 
-class PingMessage(BaseModel):
+class PingMessage(_Message):
     type: Literal["ping"] = "ping"
 
 

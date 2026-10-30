@@ -68,7 +68,7 @@ def _telemetry(t: int) -> DeviceTelemetryEvent:
 
 
 def _log(msg: str) -> RunLogEvent:
-    return RunLogEvent(run_id="r1", level="info", message=msg)
+    return RunLogEvent(run_id="r1", session_id="s1", level="info", message=msg)
 
 
 def _roundtrip(ws: Any) -> None:

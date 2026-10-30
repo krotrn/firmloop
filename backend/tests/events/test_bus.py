@@ -7,7 +7,7 @@ from firmloop.events.models import DeviceErrorEvent, DeviceTelemetryEvent, RunLo
 
 
 def _log(n: int) -> RunLogEvent:
-    return RunLogEvent(run_id="r1", level="info", message=str(n))
+    return RunLogEvent(run_id="r1", session_id="s1", level="info", message=str(n))
 
 
 def _telemetry(t: int) -> DeviceTelemetryEvent:
