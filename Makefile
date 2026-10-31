@@ -20,8 +20,11 @@ FRONTEND_RUN := $(FRONTEND_RUN_BASE) frontend
 # Same, with shared/ mounted read-only for the type generator.
 FRONTEND_SHARED_RUN := $(FRONTEND_RUN_BASE) -v $(CURDIR)/shared:/shared:ro frontend
 
+# Backend source mounted with auto-reload; see compose.dev.yml.
+DEV_COMPOSE := docker compose -f compose.yml -f compose.dev.yml
+
 .DEFAULT_GOAL := help
-.PHONY: help build up up-ollama ollama-pull try-understand down logs doctor test test-backend test-builder test-firmware test-frontend lint schemas bench bench-validate db-reset migrate e2e
+.PHONY: help build up up-ollama dev ollama-pull try-understand down logs doctor test test-backend test-builder test-firmware test-frontend lint schemas bench bench-validate db-reset migrate e2e
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  %-15s %s\n", $$1, $$2}'
@@ -36,6 +39,12 @@ up: ## Start all services in the background (creates ./data)
 up-ollama: ## Start all services plus the Ollama container (profile ollama)
 	mkdir -p data
 	docker compose --profile ollama up -d
+
+dev: ## Hot reload: backend container runs the source with --reload, frontend `pnpm dev` on the host
+	mkdir -p data
+	docker compose stop frontend
+	$(DEV_COMPOSE) up -d --wait backend builder device
+	cd frontend && pnpm install --frozen-lockfile && pnpm dev
 
 down: ## Stop all services
 	docker compose down

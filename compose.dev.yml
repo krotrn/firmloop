@@ -1,0 +1,19 @@
+# Development override: `make dev`. The backend runs the working tree's source with
+# auto-reload; the frontend runs on the host (`pnpm dev`), so its container is not started.
+# Runner, builder and device are unchanged and stay on their internal networks.
+services:
+  backend:
+    command:
+      - uvicorn
+      - firmloop.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --reload
+      - --reload-dir
+      - /app/src
+      - --reload-include
+      - "*.md"
+    volumes:
+      - ./backend/src:/app/src:ro

@@ -105,6 +105,14 @@ make down         # stop
 
 Open **http://localhost:3000**.
 
+For development with hot reload:
+
+```bash
+make dev          # runner, builder, device + backend (auto-reload) in Docker; frontend `pnpm dev` on the host
+```
+
+Needs Node 24 and pnpm on the host. Backend source changes reload the backend container; frontend changes hot-reload in the browser. Ctrl-C stops the frontend; `make down` stops the containers and `make up` goes back to the normal images.
+
 1. Click **New session**.
 2. Type or speak a request (mic button, Chrome/Edge only).
 3. Check **"Here's what I understood"**, edit if needed, click **Confirm**.
