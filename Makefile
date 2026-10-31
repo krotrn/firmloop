@@ -44,7 +44,7 @@ dev: ## Hot reload: backend container runs the source with --reload, frontend `p
 	mkdir -p data
 	docker compose stop frontend
 	$(DEV_COMPOSE) up -d --wait backend builder device
-	cd frontend && pnpm install --frozen-lockfile && pnpm dev
+	cd frontend && pnpm install --frozen-lockfile && pnpm dev --hostname 127.0.0.1 --port 3000
 
 down: ## Stop all services
 	docker compose down
