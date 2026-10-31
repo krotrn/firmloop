@@ -144,21 +144,47 @@ def test_service_health_fail() -> None:
 
 # ---- llm ----
 def test_llm_fail_bad_provider_and_missing_key() -> None:
-    assert doctor.check_llm({"LLM_PROVIDER": "bogus"}).status == "FAIL"
-    assert doctor.check_llm({}).status == "FAIL"
-    r = doctor.check_llm({"LLM_PROVIDER": "gemini", "GEMINI_API_KEY": ""})
+    assert doctor.check_llm({"LLM_PROVIDER": "bogus"}, fake_run(1)).status == "FAIL"
+    assert doctor.check_llm({}, fake_run(1)).status == "FAIL"
+    r = doctor.check_llm({"LLM_PROVIDER": "gemini", "GEMINI_API_KEY": ""}, fake_run(1))
     assert r.status == "FAIL" and r.fix and "GEMINI_API_KEY" in r.fix
-    assert doctor.check_llm({"LLM_PROVIDER": "anthropic"}).status == "FAIL"
-    assert doctor.check_llm({"LLM_PROVIDER": "ollama", "OLLAMA_BASE_URL": ""}).status == "FAIL"
-
-
-def test_llm_configured_warns_test_call_skipped() -> None:
-    r = doctor.check_llm({"LLM_PROVIDER": "gemini", "GEMINI_API_KEY": "k"})
-    assert r.status == "WARN" and "skipped until the LLM layer exists" in r.detail
-    assert isinstance(r.fix, str) and r.fix.strip()
-    assert doctor.check_llm({"LLM_PROVIDER": "ollama", "OLLAMA_BASE_URL": "http://x"}).status == (
-        "WARN"
+    assert doctor.check_llm({"LLM_PROVIDER": "anthropic"}, fake_run(1)).status == "FAIL"
+    assert (
+        doctor.check_llm({"LLM_PROVIDER": "ollama", "OLLAMA_BASE_URL": ""}, fake_run(1)).status
+        == "FAIL"
     )
+
+
+def test_llm_config_failure_skips_test_call() -> None:
+    def run(cmd: list[str], timeout: float) -> subprocess.CompletedProcess[str]:
+        raise AssertionError("no test call without a configured provider")
+
+    assert doctor.check_llm({"LLM_PROVIDER": "gemini"}, run).status == "FAIL"
+
+
+def test_llm_test_call_ok_runs_ping_in_backend_container() -> None:
+    seen: list[list[str]] = []
+
+    def run(cmd: list[str], timeout: float) -> subprocess.CompletedProcess[str]:
+        seen.append(cmd)
+        return cp(0, "gemini gemini-2.5-flash answered in 412 ms\n")
+
+    r = doctor.check_llm({"LLM_PROVIDER": "gemini", "GEMINI_API_KEY": "k"}, run)
+    assert r.status == "OK" and r.detail == "gemini gemini-2.5-flash answered in 412 ms"
+    assert seen[0][:5] == ["docker", "compose", "exec", "-T", "backend"]
+    assert seen[0][-1] == "scripts/llm_ping.py"
+
+
+def test_llm_test_call_failure_reports_last_line() -> None:
+    run = fake_run(1, "warming up\nLLMUnavailable: gemini error 403: key invalid\n")
+    r = doctor.check_llm({"LLM_PROVIDER": "gemini", "GEMINI_API_KEY": "k"}, run)
+    assert r.status == "FAIL" and "key invalid" in r.detail and r.fix
+
+
+def test_llm_test_call_backend_down_fails() -> None:
+    run = fake_run(1, "", 'service "backend" is not running')
+    r = doctor.check_llm({"LLM_PROVIDER": "ollama", "OLLAMA_BASE_URL": "http://x"}, run)
+    assert r.status == "FAIL" and "not running" in r.detail
 
 
 # ---- serial ----
@@ -225,8 +251,8 @@ def test_every_warn_or_fail_has_fix(tmp_path: Path) -> None:
         doctor.check_image("runner", fake_run(1)),
         doctor.check_backend_health(lambda u, t: (500, "")),
         doctor.check_service_health("runner", fake_run(1)),
-        doctor.check_llm({}),
-        doctor.check_llm({"LLM_PROVIDER": "gemini", "GEMINI_API_KEY": "k"}),
+        doctor.check_llm({}, fake_run(1)),
+        doctor.check_llm({"LLM_PROVIDER": "gemini", "GEMINI_API_KEY": "k"}, fake_run(1)),
         doctor.check_serial({"DEVICE_MODE": "real"}, lambda: []),
     ]
     for r in results:
@@ -277,7 +303,7 @@ def test_default_run_timeout_and_missing_binary() -> None:
 
 def test_secret_never_printed() -> None:
     env = {"LLM_PROVIDER": "gemini", "GEMINI_API_KEY": "sk-test-secret"}
-    for r in (doctor.check_llm(env), doctor.check_serial(env, lambda: [])):
+    for r in (doctor.check_llm(env, fake_run(1)), doctor.check_serial(env, lambda: [])):
         assert "sk-test-secret" not in doctor.format_result(r)
 
 
@@ -289,7 +315,7 @@ def test_parse_env_value_starting_with_hash_is_comment() -> None:
 
 def test_llm_key_with_only_comment_fails() -> None:
     env = doctor.parse_env("LLM_PROVIDER=gemini\nGEMINI_API_KEY= # paste key\n")
-    r = doctor.check_llm(env)
+    r = doctor.check_llm(env, fake_run(1))
     assert r.status == "FAIL" and r.fix
 
 

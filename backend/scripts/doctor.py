@@ -29,6 +29,12 @@ PROVIDER_VARS = {
 }
 TIMEOUT = 5.0
 DOCKER_INFO_TIMEOUT = 10.0
+# The test call runs in the backend container: same settings and network as the app.
+LLM_PING_CMD = [
+    "docker", "compose", "exec", "-T", "backend",
+    "uv", "run", "--no-sync", "python", "scripts/llm_ping.py",
+]  # fmt: skip
+LLM_PING_TIMEOUT = 90.0
 
 
 @dataclass(frozen=True)
@@ -189,7 +195,7 @@ def check_service_health(service: str, run: Run) -> CheckResult:
     )
 
 
-def check_llm(env: dict[str, str]) -> CheckResult:
+def check_llm(env: dict[str, str], run: Run) -> CheckResult:
     provider = env.get("LLM_PROVIDER", "")
     if provider not in PROVIDERS:
         return CheckResult(
@@ -203,11 +209,16 @@ def check_llm(env: dict[str, str]) -> CheckResult:
         return CheckResult(
             "FAIL", "llm", f"{var} is not set for provider {provider}", f"Set {var} in .env"
         )
+    p = _safe_run(run, LLM_PING_CMD, LLM_PING_TIMEOUT)
+    lines = (p.stdout or p.stderr).strip().splitlines()
+    last = _one_line(lines[-1]) if lines else "no output"
+    if p.returncode == 0:
+        return CheckResult("OK", "llm", last)
     return CheckResult(
-        "WARN",
+        "FAIL",
         "llm",
-        f"provider {provider} configured; test call skipped until the LLM layer exists",
-        "No action needed: the tiny LLM test call is added with the LLM layer",
+        f"test call to {provider} failed ({last[-120:]})",
+        "Start the backend (`make up`); then check the key, model and network for the provider",
     )
 
 
@@ -270,7 +281,7 @@ def collect_checks() -> list[CheckResult]:
     checks.append(("health:backend", lambda: check_backend_health(default_http_get)))
     for s in INTERNAL_PORTS:
         checks.append((f"health:{s}", lambda s=s: check_service_health(s, default_run)))
-    checks.append(("llm", lambda: check_llm(env)))
+    checks.append(("llm", lambda: check_llm(env, default_run)))
     checks.append(("serial", lambda: check_serial(env, default_serial_ports)))
     return [safe_check(name, fn) for name, fn in checks]
 
