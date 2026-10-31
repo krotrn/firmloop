@@ -261,6 +261,50 @@ async def test_attempts_of_unknown_run_and_unknown_attempt(
     assert attempt.json()["error"]["code"] == "NOT_FOUND"
 
 
+async def test_tests_of_unknown_run_is_not_found(engine: AsyncEngine, registry: Registry) -> None:
+    async with api_app(engine, registry) as api:
+        response = await api.client.get("/api/runs/nope/tests")
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "NOT_FOUND"
+
+
+async def test_tests_before_generation_are_empty(engine: AsyncEngine, registry: Registry) -> None:
+    async with api_app(engine, registry) as api:
+        session_id = await api.new_session()
+        api.queue(spec_reply())
+        waiting = await api.request(session_id)
+        response = await api.client.get(f"/api/runs/{waiting['id']}/tests")
+
+    assert waiting["status"] == "awaiting_confirmation"
+    assert response.status_code == 200
+    assert response.json() == {"items": []}
+
+
+async def test_tests_after_generation_are_listed_in_stored_order(
+    engine: AsyncEngine, registry: Registry
+) -> None:
+    async with api_app(engine, registry) as api:
+        session_id = await api.new_session()
+        api.queue(spec_reply(SPEC_TWO), code_reply(GOOD_CODE))
+        api.runner.outcomes.append("pass")
+        run = await api.request(session_id)
+        await api.client.post(f"/api/runs/{run['id']}/confirm", json={})
+        done = await api.settle(run["id"])
+        response = await api.client.get(f"/api/runs/{done['id']}/tests")
+
+    assert done["status"] == "succeeded", done["failure"]
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert [item["id"] for item in items] == ["s:s1", "s:s2"]
+    assert [item["origin"] for item in items] == ["scenario", "scenario"]
+    assert [item["scenario"]["id"] for item in items] == ["s1", "s2"]
+    assert [item["scenario"]["title"] for item in items] == [
+        scenario.title for scenario in SPEC_TWO.scenarios
+    ]
+    assert all(item["from_base"] is False for item in items)
+
+
 # --- actions on a waiting run -----
 
 

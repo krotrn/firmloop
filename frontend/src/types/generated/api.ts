@@ -242,6 +242,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runs/{run_id}/tests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Tests */
+        get: operations["list_tests_api_runs__run_id__tests_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/sessions": {
         parameters: {
             query?: never;
@@ -1028,6 +1045,34 @@ export interface components {
             set?: {
                 [key: string]: number | boolean;
             };
+        };
+        /**
+         * TestCase
+         * @description One generated test: a scenario plus where it came from.
+         */
+        TestCase: {
+            /**
+             * From Base
+             * @default false
+             */
+            from_base: boolean;
+            /** Id */
+            id: string;
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "scenario" | "boundary" | "truth_table";
+            /** Origin Rule Id */
+            origin_rule_id?: string | null;
+            /** Origin Scenario Id */
+            origin_scenario_id?: string | null;
+            scenario: components["schemas"]["Scenario"];
+        };
+        /** TestCaseList */
+        TestCaseList: {
+            /** Items */
+            items: components["schemas"]["TestCase"][];
         };
         /** TestResult */
         TestResult: {
@@ -2311,6 +2356,91 @@ export interface operations {
             };
         };
     };
+    list_tests_api_runs__run_id__tests_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestCaseList"];
+                };
+            };
+            /** @description The request failed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The request failed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The request failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The request failed. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The request failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The request failed. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The request failed. */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_sessions_api_sessions_get: {
         parameters: {
             query?: {
@@ -3472,3 +3602,4 @@ export const settingsOutLlm_providerValues: ReadonlyArray<FlattenedDeepRequired<
 export const settingsUpdateDevice_modeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SettingsUpdate"]["device_mode"]> = ["real", "virtual"];
 export const settingsUpdateLlm_fallback_providerAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SettingsUpdate"]["llm_fallback_provider"]> = ["gemini", "ollama", "anthropic", "fake"];
 export const settingsUpdateLlm_providerAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SettingsUpdate"]["llm_provider"]> = ["gemini", "ollama", "anthropic", "fake"];
+export const testCaseOriginValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TestCase"]["origin"]> = ["scenario", "boundary", "truth_table"];

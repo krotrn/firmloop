@@ -15,7 +15,7 @@ from firmloop.hardware.registry import Registry
 from firmloop.records import TestResult, Violation
 from firmloop.spec.describe import describe_boundaries
 from firmloop.spec.diff import SpecDiff
-from firmloop.spec.models import Question, Spec
+from firmloop.spec.models import Question, Spec, TestCase
 
 DEFAULT_LIMIT = 50
 MAX_LIMIT = 200
@@ -96,6 +96,12 @@ class AttemptList(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     items: list[AttemptOut]
+
+
+class TestCaseList(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[TestCase]
 
 
 class RunOut(BaseModel):

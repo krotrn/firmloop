@@ -14,6 +14,7 @@ from firmloop.api.views import (
     AttemptOut,
     RunList,
     RunOut,
+    TestCaseList,
     attempt_out,
     next_cursor,
     parse_cursor,
@@ -186,6 +187,14 @@ async def list_attempts(engine: EngineDep, run_id: str) -> AttemptList:
         raise _not_found("Run", run_id)
     attempts = await repo.get_attempts(engine, run_id)
     return AttemptList(items=[attempt_out(a) for a in attempts])
+
+
+@router.get("/runs/{run_id}/tests")
+async def list_tests(engine: EngineDep, run_id: str) -> TestCaseList:
+    run = await repo.get_run(engine, run_id)
+    if run is None:
+        raise _not_found("Run", run_id)
+    return TestCaseList(items=repo.run_tests(run))
 
 
 @router.get("/attempts/{attempt_id}")
