@@ -14,7 +14,7 @@ FirmLoop:
 
 Follow-up requests (*"also beep when motion is detected"*) **modify the current program**; all older tests must keep passing.
 
-> Major project (7th semester, CSE). Single-board, single-user, runs locally.
+> Single-board, single-user, runs locally.
 
 ---
 
