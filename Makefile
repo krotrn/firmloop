@@ -12,8 +12,13 @@ TASKS ?=
 # mkdir pre-creates the anonymous-volume mountpoints so Docker does not create them root-owned.
 # shared/ is mounted read-only so the backend tests can check the committed schemas are current.
 HOST_USER := $(shell id -u):$(shell id -g)
-BACKEND_RUN := mkdir -p backend/.venv && docker compose run --rm --user $(HOST_USER) -v $(CURDIR)/backend:/app -v /app/.venv -v $(CURDIR)/shared:/shared:ro -v $(CURDIR)/.env.example:/.env.example:ro \
+BACKEND_RUN_ARGS := run --rm --user $(HOST_USER) -v $(CURDIR)/backend:/app -v /app/.venv -v $(CURDIR)/shared:/shared:ro -v $(CURDIR)/.env.example:/.env.example:ro \
 	-e HOME=/tmp -e UV_NO_SYNC=1 -e UV_CACHE_DIR=/tmp/uv -e RUFF_CACHE_DIR=/tmp/ruff backend
+BACKEND_RUN := mkdir -p backend/.venv && docker compose $(BACKEND_RUN_ARGS)
+# Backend tests run in their own compose project with their own runner, so a running stack (which
+# holds the runner's single live session) never turns the tests' live-sim connections away.
+TEST_COMPOSE := docker compose -p firmloop-test
+TEST_BACKEND_RUN := mkdir -p backend/.venv && $(TEST_COMPOSE) $(BACKEND_RUN_ARGS)
 FRONTEND_RUN_BASE := mkdir -p frontend/node_modules frontend/.next && docker compose run --rm --user $(HOST_USER) -v $(CURDIR)/frontend:/app -v /app/node_modules -v /app/.next \
 	-e HOME=/tmp -e XDG_CACHE_HOME=/tmp/cache -e COREPACK_HOME=/tmp/corepack
 FRONTEND_RUN := $(FRONTEND_RUN_BASE) frontend
@@ -57,8 +62,11 @@ doctor: ## Environment check, runs on the host
 
 test: test-backend test-firmware test-frontend ## Run all tests
 
-test-backend: ## Backend pytest inside the backend container
-	$(BACKEND_RUN) uv run pytest -q -p no:cacheprovider
+# The test project is always removed, also when the tests fail or are interrupted; the exit status
+# is the tests'.
+test-backend: ## Backend pytest inside the backend container (own runner, separate from a running stack)
+	trap '$(TEST_COMPOSE) down -v --remove-orphans' EXIT; trap 'exit 130' INT TERM; \
+	$(TEST_BACKEND_RUN) uv run pytest -q -p no:cacheprovider
 
 # Builder-marked integration tests (slow, real arduino-cli). The builder is started explicitly here
 # instead of being a backend dependency, so `make test-backend` and `make up` stay fast.
