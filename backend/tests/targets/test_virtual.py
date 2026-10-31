@@ -351,3 +351,29 @@ async def test_telemetry_reports_restart(rig) -> None:
     event = await asyncio.wait_for(pending, 1.0)
     assert (event.kind, event.reason) == ("restarted", "max_lifetime")
     await events.aclose()
+
+
+async def test_mode_is_run_override_or_test(rig) -> None:
+    target, conn, _ = rig
+    await target.load(_version())
+    assert target.mode == "run"
+    await target.override("fan", True, 5000)
+    assert target.mode == "override"
+    await target.override_clear("fan")
+    assert target.mode == "run"
+    await target.override("fan", True, 1)
+    await asyncio.sleep(0.01)
+    assert target.mode == "run"  # the override ran out
+
+    modes: list[str] = []
+    original = conn.responder
+
+    def spy(c, msg) -> None:
+        if msg["type"] == "set":
+            modes.append(target.mode)
+        original(c, msg)
+
+    conn.responder = spy
+    await target.run_test_case(_case(), "tok")
+    assert modes == ["test"]
+    assert target.mode == "run"

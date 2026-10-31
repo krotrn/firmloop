@@ -3,6 +3,7 @@
 import asyncio
 import contextlib
 import logging
+import time
 from collections.abc import AsyncGenerator, Iterator
 from typing import Literal, Protocol
 
@@ -98,10 +99,21 @@ class VirtualTarget:
         self._sim: LiveSim | None = None
         self._pump_task: asyncio.Task[None] | None = None
         self._loaded = False
+        self._in_test = False
+        self._overrides: dict[str, float] = {}  # channel -> monotonic deadline
         self._last_seen: str | None = None
         self._queues: set[asyncio.Queue[_Item]] = set()
         self._lock = asyncio.Lock()
         self._connect_lock = asyncio.Lock()
+
+    @property
+    def mode(self) -> Literal["run", "test", "override"]:
+        """What the simulator is doing now: a test case, a live override, or the normal run."""
+        if self._in_test:
+            return "test"
+        now = time.monotonic()
+        self._overrides = {c: d for c, d in self._overrides.items() if d > now}
+        return "override" if self._overrides else "run"
 
     # connection ---------------------------------------------------------------------------
 
@@ -215,6 +227,7 @@ class VirtualTarget:
             sim = await self._ensure_sim()
             with self._subscribe() as queue:
                 self._loaded = False
+                self._overrides.clear()
                 await sim.load(files, version.id)
                 loaded = await self._wait(
                     queue, LiveLoaded, self._load_timeout_s, ErrorCode.RUNNER_TIMEOUT, "load result"
@@ -286,6 +299,8 @@ class VirtualTarget:
         async with self._lock:
             sim = await self._ensure_sim()
             with self._subscribe() as queue:
+                self._in_test = True
+                self._overrides.clear()
                 try:
                     await sim.restart(given, test=True)
                     await self._wait(
@@ -298,6 +313,7 @@ class VirtualTarget:
                     steps = await self._send_due(sim, steps, -TICK_MS)
                     await self._collect(sim, queue, steps, end_ms, snapshots)
                 finally:
+                    self._in_test = False
                     await self._leave_test_mode(sim)
         return snapshots
 
@@ -381,8 +397,10 @@ class VirtualTarget:
         async with self._lock:
             sim = await self._ensure_sim()
             await sim.override(channel, value, ms)
+            self._overrides[channel] = time.monotonic() + ms / 1000
 
     async def override_clear(self, channel: str) -> None:
         async with self._lock:
             sim = await self._ensure_sim()
             await sim.override_clear(channel)
+            self._overrides.pop(channel, None)

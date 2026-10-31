@@ -15,10 +15,13 @@ from firmloop.api.ws import build_ws_router
 from firmloop.clients.builder import BuilderClient
 from firmloop.clients.runner import RunnerClient
 from firmloop.config import Settings
+from firmloop.db import repo
 from firmloop.db.engine import create_db_engine
 from firmloop.db.migrate import upgrade_to_head
 from firmloop.events.bus import EventBus
+from firmloop.events.models import DeviceStatusEvent
 from firmloop.hardware.registry import Registry
+from firmloop.targets.telemetry_pump import TelemetryPump
 from firmloop.targets.virtual import VirtualTarget
 
 
@@ -85,6 +88,18 @@ def create_app() -> FastAPI:
             app.state.orchestrator = orchestrator
             app.state.lib_version = lib_version_from_header(header)
             await orchestrator.startup()
+
+            async def device_mode() -> str:
+                return (await repo.get_settings(engine, settings)).device_mode
+
+            async def publish_status() -> None:
+                event_bus.publish(DeviceStatusEvent(status=await orchestrator.device_status()))
+
+            pump = TelemetryPump(
+                target, event_bus, device_mode=device_mode, publish_status=publish_status
+            )
+            stack.push_async_callback(pump.stop)
+            pump.start()
             yield
 
     return assemble_app(settings, event_bus, lifespan=lifespan)
