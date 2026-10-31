@@ -20,6 +20,16 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
 const TS = "2026-01-01T00:00:00Z";
 
+// The run history is the only unordered list; the step timeline is an ordered one.
+const getHistoryList = (): HTMLElement => {
+  const found = screen
+    .getAllByRole("list")
+    .find((element) => element.tagName === "UL");
+  if (!found) throw new Error("run history list not found");
+  return found;
+};
+const findHistoryList = () => waitFor(getHistoryList);
+
 const session = (over: Partial<Session> = {}): Session => ({
   id: "s1",
   title: "Fan control",
@@ -374,7 +384,7 @@ describe("request box", () => {
   it("is enabled when the latest run is waiting for the user", async () => {
     mockData({ runs: [run("r1", { status: "awaiting_answer" })] });
     renderWorkspace();
-    await screen.findByRole("list");
+    await findHistoryList();
     await userEvent.type(textbox(), "answer");
     expect(sendButton()).toBeEnabled();
     expect(screen.queryByText("A run is in progress.")).toBeNull();
@@ -424,7 +434,7 @@ describe("run history and run panel", () => {
   it("labels request, rollback and manual runs, newest first", async () => {
     mockData({ runs });
     renderWorkspace();
-    const list = await screen.findByRole("list");
+    const list = await findHistoryList();
     const rows = within(list).getAllByRole("button");
     expect(rows).toHaveLength(4);
     expect(rows[0]).toHaveTextContent("Request r4");
@@ -443,7 +453,7 @@ describe("run history and run panel", () => {
       runs: [run("r1", { kind: "rollback", request_text: null })],
     });
     renderWorkspace();
-    const list = await screen.findByRole("list");
+    const list = await findHistoryList();
     expect(within(list).getByRole("button")).toHaveTextContent(/^Rollback/);
     expect(within(list).getByRole("button")).not.toHaveTextContent("to v");
   });
@@ -460,7 +470,7 @@ describe("run history and run panel", () => {
     mockData({ runs });
     vi.spyOn(runsService, "createRun").mockResolvedValue(run("r5"));
     renderWorkspace();
-    const list = await screen.findByRole("list");
+    const list = await findHistoryList();
     const row = (name: string) =>
       within(list).getByRole("button", { name: new RegExp(name) });
 
@@ -479,7 +489,7 @@ describe("run history and run panel", () => {
     mockData({ runs: finished });
     vi.spyOn(runsService, "createRun").mockResolvedValue(run("r3"));
     renderWorkspace();
-    const list = await screen.findByRole("list");
+    const list = await findHistoryList();
     await userEvent.click(
       within(list).getByRole("button", { name: /Request r1/ })
     );
@@ -505,7 +515,7 @@ describe("run history and run panel", () => {
     await userEvent.click(
       await screen.findByRole("button", { name: "Load more" })
     );
-    expect(await screen.findByRole("list")).toHaveTextContent("Request r1");
+    expect(await findHistoryList()).toHaveTextContent("Request r1");
     expect(data.listRuns).toHaveBeenLastCalledWith("s1", { cursor: "c1" });
   });
 
@@ -517,7 +527,7 @@ describe("run history and run panel", () => {
     renderWorkspace();
     expect(await screen.findByText("Runs exploded")).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
-    expect(await screen.findByRole("list")).toHaveTextContent("Request r1");
+    expect(await findHistoryList()).toHaveTextContent("Request r1");
   });
 
   it("shows the selected run's summary with Cancel while it is not terminal", async () => {
@@ -581,7 +591,7 @@ describe("live updates", () => {
   it("refetches runs for this session's events only", async () => {
     const data = mockData({ runs: [run("r1", { status: "pending" })] });
     renderWorkspace();
-    await screen.findByRole("list");
+    await findHistoryList();
     const runCalls = data.listRuns.mock.calls.length;
     const sessionCalls = data.getSession.mock.calls.length;
 
@@ -803,7 +813,7 @@ describe("switching sessions", () => {
       </QueryClientProvider>
     );
     const { rerender } = render(await tree("s1"));
-    const list = await screen.findByRole("list");
+    const list = await findHistoryList();
     await userEvent.type(textbox(), "draft");
     await userEvent.click(
       within(list).getByRole("button", { name: /Request r1/ })
@@ -819,7 +829,7 @@ describe("switching sessions", () => {
     ).toBeVisible();
     expect(textbox()).toHaveValue("");
     // Both runs are still listed, so only a fresh mount explains the selection moving back.
-    const runs = within(await screen.findByRole("list"));
+    const runs = within(await findHistoryList());
     expect(runs.getByRole("button", { name: /Request r2/ })).toHaveAttribute(
       "aria-current",
       "true"
@@ -832,7 +842,7 @@ describe("switching sessions", () => {
   it("follows the newest run when the pinned run leaves the list", async () => {
     const data = mockData({ runs: [run("r2"), run("r1")] });
     renderWorkspace();
-    const list = await screen.findByRole("list");
+    const list = await findHistoryList();
     await userEvent.click(
       within(list).getByRole("button", { name: /Request r1/ })
     );
@@ -849,7 +859,7 @@ describe("switching sessions", () => {
       })
     );
     await waitFor(() =>
-      expect(screen.getAllByRole("listitem")).toHaveLength(1)
+      expect(within(getHistoryList()).getAllByRole("listitem")).toHaveLength(1)
     );
 
     data.listRuns.mockResolvedValue({
@@ -867,10 +877,10 @@ describe("switching sessions", () => {
       })
     );
     await waitFor(() =>
-      expect(screen.getAllByRole("listitem")).toHaveLength(2)
+      expect(within(getHistoryList()).getAllByRole("listitem")).toHaveLength(2)
     );
     expect(
-      within(screen.getByRole("list")).getByRole("button", {
+      within(getHistoryList()).getByRole("button", {
         name: /Request r2/,
       })
     ).toHaveAttribute("aria-current", "true");

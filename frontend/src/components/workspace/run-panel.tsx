@@ -2,19 +2,26 @@
 
 import { Loader2Icon } from "lucide-react";
 
+import { CodeTab } from "@/components/code/code-tab";
 import { DevicePanel } from "@/components/device/device-panel";
 import { EmptyState } from "@/components/feedback/empty-state";
+import { AttemptsList } from "@/components/run/attempts-list";
+import { RunLog } from "@/components/run/run-log";
+import { RunTimeline } from "@/components/run/run-timeline";
 import { RunStatusBadge } from "@/components/runs/run-status-badge";
+import { TestsTab } from "@/components/tests/tests-tab";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { VersionsTab } from "@/components/versions/versions-tab";
+import { runLabel } from "@/components/workspace/run-history";
 import { useCancelRun } from "@/hooks/queries/use-runs";
+import { useRunLog } from "@/hooks/use-run-log";
 import { isTerminal } from "@/lib/run-status";
 import { relativeTime } from "@/lib/time";
 import type { DeviceStatus } from "@/services/device.service";
 import type { Run } from "@/services/runs.service";
 
 type DeviceMode = DeviceStatus["mode"];
-import { runLabel } from "@/components/workspace/run-history";
 
 function When({ label, iso }: { label: string; iso: string }) {
   return (
@@ -84,6 +91,7 @@ export function RunPanel({
   sessionId: string;
   deviceMode: DeviceMode | null;
 }) {
+  const logLines = useRunLog(sessionId, run?.id ?? null);
   return (
     <Tabs defaultValue="run" className="min-w-0">
       <TabsList className="w-full justify-start overflow-x-auto overflow-y-hidden">
@@ -95,7 +103,12 @@ export function RunPanel({
       </TabsList>
       <TabsContent value="run" className="pt-4">
         {run ? (
-          <RunSummary run={run} sessionId={sessionId} />
+          <div className="flex flex-col gap-8">
+            <RunSummary run={run} sessionId={sessionId} />
+            <RunTimeline run={run} deviceMode={deviceMode} />
+            <AttemptsList run={run} />
+            <RunLog key={run.id} lines={logLines} />
+          </div>
         ) : (
           <EmptyState
             title="No run selected"
@@ -104,22 +117,27 @@ export function RunPanel({
         )}
       </TabsContent>
       <TabsContent value="code" className="pt-4">
-        <EmptyState
-          title="No code yet"
-          description="Code appears here once a run writes it."
-        />
+        {run ? (
+          <CodeTab key={run.id} run={run} sessionId={sessionId} />
+        ) : (
+          <EmptyState
+            title="No code yet"
+            description="Code appears here once a run writes it."
+          />
+        )}
       </TabsContent>
       <TabsContent value="tests" className="pt-4">
-        <EmptyState
-          title="No tests yet"
-          description="Tests appear here once a run writes them."
-        />
+        {run ? (
+          <TestsTab run={run} sessionId={sessionId} />
+        ) : (
+          <EmptyState
+            title="No tests yet"
+            description="Tests appear here once a run writes them."
+          />
+        )}
       </TabsContent>
       <TabsContent value="versions" className="pt-4">
-        <EmptyState
-          title="No versions listed"
-          description="Verified versions appear here once a run succeeds."
-        />
+        <VersionsTab sessionId={sessionId} />
       </TabsContent>
       <TabsContent value="device" className="pt-4">
         {deviceMode ? (
