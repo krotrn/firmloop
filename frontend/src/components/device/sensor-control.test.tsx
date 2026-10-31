@@ -142,6 +142,16 @@ describe("SensorControl", () => {
     expect(onCommit).toHaveBeenCalledWith(7);
   });
 
+  it("sends nothing when a disabled slider reports a commit", () => {
+    const onCommit = vi.fn();
+    render(
+      <SensorControl channel={temp} value={20} disabled onCommit={onCommit} />
+    );
+    fireEvent.click(screen.getByText("release"));
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(screen.getByText("20.0 °C")).toBeInTheDocument();
+  });
+
   it("drops the drag when the control becomes disabled", () => {
     const { rerender } = render(
       <SensorControl channel={temp} value={20} onCommit={vi.fn()} />

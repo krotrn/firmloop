@@ -63,6 +63,8 @@ export function SensorControl({
   const valueText = formatChannelValue(shown, channel);
 
   const commit = (next: number | boolean) => {
+    // The slider still reports keyboard commits while disabled.
+    if (disabled) return;
     const numeric =
       typeof next === "boolean"
         ? next

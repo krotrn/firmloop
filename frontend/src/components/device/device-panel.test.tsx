@@ -194,6 +194,7 @@ describe("DevicePanel", () => {
     currentTelemetry = telemetry();
     renderPanel("real");
     expect(await screen.findByText("31.5 °C")).toBeInTheDocument();
+    expect(screen.getByText("100")).toBeInTheDocument();
     expect(screen.queryByRole("slider")).not.toBeInTheDocument();
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
     expect(screen.getByLabelText("fan on")).toBeInTheDocument();
@@ -258,5 +259,60 @@ describe("DevicePanel", () => {
     await waitFor(() =>
       expect(screen.queryByText("A run is active")).not.toBeInTheDocument()
     );
+  });
+
+  it("shows a Virtual or Real badge from the mode", async () => {
+    const { unmount } = renderPanel("virtual");
+    await findSlider("temp");
+    expect(screen.getByText("Virtual")).toBeInTheDocument();
+    unmount();
+    renderPanel("real");
+    expect(await screen.findByText("Real")).toBeInTheDocument();
+  });
+
+  it("shows an empty 4 by 21 display box before telemetry", async () => {
+    renderPanel();
+    const lines = await screen.findAllByTestId("oled-line");
+    expect(lines).toHaveLength(4);
+    for (const line of lines) expect(line.textContent).toBe(" ".repeat(21));
+  });
+
+  it("shows an actuator as off when telemetry reports 0", async () => {
+    currentTelemetry = telemetry({ a: { fan: 0 } });
+    renderPanel();
+    expect(await screen.findByLabelText("fan off")).toBeInTheDocument();
+    expect(screen.queryByLabelText("fan on")).not.toBeInTheDocument();
+  });
+
+  it("sends nothing for a switch toggle while a test runs", async () => {
+    const setSensor = vi
+      .spyOn(deviceCommandService, "setSensor")
+      .mockResolvedValue({ ok: true });
+    currentTelemetry = telemetry({ mode: "test" });
+    renderPanel();
+    expect(await screen.findByText("Test running")).toBeInTheDocument();
+    expect(getSlider("temp")).toBeDisabled();
+    fireEvent.click(screen.getByRole("switch", { name: "motion" }));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(setSensor).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing for a slider keyboard change while a test runs", async () => {
+    const setSensor = vi
+      .spyOn(deviceCommandService, "setSensor")
+      .mockResolvedValue({ ok: true });
+    currentTelemetry = telemetry({ mode: "test" });
+    renderPanel();
+    expect(await screen.findByText("Test running")).toBeInTheDocument();
+    fireEvent.keyDown(getSlider("temp"), { key: "ArrowRight" });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(setSensor).not.toHaveBeenCalled();
+  });
+
+  it("makes every sensor controllable in virtual mode, including bool ones", async () => {
+    renderPanel();
+    await findSlider("temp");
+    expect(getSlider("light")).not.toBeDisabled();
+    expect(screen.getByRole("switch", { name: "motion" })).toBeInTheDocument();
   });
 });
