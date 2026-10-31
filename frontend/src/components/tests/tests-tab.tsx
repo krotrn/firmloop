@@ -14,12 +14,10 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRunAttempts } from "@/hooks/queries/use-attempts";
 import { useRunTests } from "@/hooks/queries/use-run-tests";
+import { describeExpectation } from "@/lib/expectation-words";
 import type { Attempt } from "@/services/attempts.service";
 import type { TestCase, TestResult } from "@/services/run-tests.service";
 import type { Run } from "@/services/runs.service";
-import type { components } from "@/types/generated/api";
-
-type Expectation = components["schemas"]["Expectation"];
 
 const ORIGIN_LABEL: Record<TestCase["origin"], string> = {
   scenario: "Scenario",
@@ -36,26 +34,6 @@ function defaultAttempt(attempts: Attempt[], bestId: string | null): Attempt {
     attempts.find((a) => a.id === bestId) ??
     attempts.reduce((latest, a) => (a.number > latest.number ? a : latest))
   );
-}
-
-function describeExpectation(e: Expectation): string {
-  // The channel already names the display, so its op reads as a plain "contains".
-  const op =
-    e.op === "eq"
-      ? "is"
-      : e.op === "display_contains"
-        ? "contains"
-        : e.op.replace(/_/g, " ");
-  const parts = [
-    e.channel,
-    e.row === null || e.row === undefined ? null : `row ${e.row}`,
-    op,
-    String(e.value ?? e.source_channel ?? ""),
-    e.within_ms > 0 ? `within ${e.within_ms} ms` : null,
-    e.hold_ms > 0 ? `for ${e.hold_ms} ms` : null,
-    e.tolerance > 0 ? `±${e.tolerance}` : null,
-  ];
-  return parts.filter((part) => part !== null && part !== "").join(" ");
 }
 
 function ResultLabel({ result }: { result: TestResult | undefined }) {

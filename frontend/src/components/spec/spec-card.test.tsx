@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -320,5 +320,200 @@ describe("SpecCard", () => {
     expect(screen.getByText("Fan on when hot")).toBeVisible();
     expect(screen.queryByRole("button")).toBeNull();
     expect(screen.queryByText("New")).toBeNull();
+  });
+
+  it("shows rules read-only with their description and diff badge", () => {
+    renderCard(run());
+    const description = screen.getByText("Fan runs above 28 C");
+    expect(description).toBeVisible();
+    expect(
+      within(description.parentElement!).getByText("Changed")
+    ).toBeVisible();
+    expect(screen.queryByLabelText(/Fan runs above/)).toBeNull();
+    expect(screen.queryByRole("textbox")).toBeNull();
+  });
+
+  it("shows no removed line and no boundaries heading when there are none", () => {
+    renderCard(
+      run({
+        boundaries: [],
+        spec_diff: {
+          summary_changed: false,
+          rules: { added: [], modified: [], removed: [], unchanged: ["r1"] },
+          scenarios: {
+            added: [],
+            modified: [],
+            removed: [],
+            unchanged: ["s1", "s2"],
+          },
+        },
+      })
+    );
+    expect(screen.queryByText(/^Removed:/)).toBeNull();
+    expect(screen.queryByText("Boundaries")).toBeNull();
+    expect(screen.queryByText("New")).toBeNull();
+    expect(screen.queryByText("Changed")).toBeNull();
+  });
+
+  it("marks only changed scenarios with a badge", () => {
+    renderCard(
+      run({
+        spec_diff: {
+          summary_changed: false,
+          rules: { added: [], modified: [], removed: [], unchanged: ["r1"] },
+          scenarios: {
+            added: [],
+            modified: ["s2"],
+            removed: [],
+            unchanged: ["s1"],
+          },
+        },
+      })
+    );
+    expect(screen.getAllByText("Changed")).toHaveLength(1);
+    expect(screen.queryByText("New")).toBeNull();
+  });
+
+  it("summarises each scenario step with its set values and expectations", () => {
+    renderCard(run());
+    expect(screen.getByText("Hot room")).toBeVisible();
+    expect(
+      screen.getByText("At 0 s set temp = 30 expect fan is true")
+    ).toBeVisible();
+    expect(screen.getByText("At 0 s set temp = 10")).toBeVisible();
+  });
+
+  it("words a display_contains expectation like the Tests tab", () => {
+    const withDisplay = spec();
+    withDisplay.scenarios[0]!.steps[0]!.expect = [
+      {
+        channel: "display",
+        op: "display_contains",
+        value: "HOT",
+        row: 1,
+        hold_ms: 0,
+        tolerance: 0,
+        within_ms: 0,
+      },
+    ];
+    renderCard(run({ proposed_spec: withDisplay }));
+    expect(
+      screen.getByText("At 0 s set temp = 30 expect display row 1 contains HOT")
+    ).toBeVisible();
+  });
+
+  it("keeps Send answer disabled for whitespace and trims the answer", async () => {
+    const spy = vi.spyOn(decisions, "answerRun").mockResolvedValue(run());
+    renderCard(
+      run({
+        status: "awaiting_answer",
+        proposed_spec: null,
+        question: { question: "Which pin?", reason: "" },
+      })
+    );
+    const send = screen.getByRole("button", { name: "Send answer" });
+    const box = screen.getByLabelText("Your answer");
+    await userEvent.type(box, "   ");
+    expect(send).toBeDisabled();
+    await userEvent.type(box, " left  ");
+    await userEvent.click(send);
+    await waitFor(() => expect(spy).toHaveBeenCalledWith("r1", "left"));
+  });
+
+  it("limits the answer and the feedback to 2000 characters", async () => {
+    const { unmount } = renderCard(
+      run({
+        status: "awaiting_answer",
+        proposed_spec: null,
+        question: { question: "Which pin?", reason: "" },
+      })
+    );
+    expect(screen.getByLabelText("Your answer")).toHaveAttribute(
+      "maxlength",
+      "2000"
+    );
+    unmount();
+    renderCard(run());
+    await userEvent.click(screen.getByRole("button", { name: "Reject…" }));
+    expect(screen.getByLabelText("What should change?")).toHaveAttribute(
+      "maxlength",
+      "2000"
+    );
+  });
+
+  it("shows an answer error and keeps the typed answer", async () => {
+    vi.spyOn(decisions, "answerRun").mockRejectedValue(new Error("offline"));
+    renderCard(
+      run({
+        status: "awaiting_answer",
+        proposed_spec: null,
+        question: { question: "Which pin?", reason: "" },
+      })
+    );
+    const box = screen.getByLabelText("Your answer");
+    await userEvent.type(box, "left");
+    await userEvent.click(screen.getByRole("button", { name: "Send answer" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("offline");
+    expect(box).toHaveValue("left");
+  });
+
+  it("trims reject feedback, keeps it disabled for whitespace", async () => {
+    const spy = vi.spyOn(decisions, "rejectRun").mockResolvedValue(run());
+    renderCard(run());
+    await userEvent.click(screen.getByRole("button", { name: "Reject…" }));
+    const box = screen.getByLabelText("What should change?");
+    await userEvent.type(box, "   ");
+    expect(
+      screen.getByRole("button", { name: "Send feedback" })
+    ).toBeDisabled();
+    await userEvent.type(box, " too slow ");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Send feedback" })
+    );
+    await waitFor(() => expect(spy).toHaveBeenCalledWith("r1", "too slow"));
+  });
+
+  it("closes the reject form with Cancel", async () => {
+    renderCard(run());
+    await userEvent.click(screen.getByRole("button", { name: "Reject…" }));
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByLabelText("What should change?")).toBeNull();
+  });
+
+  it("shows a reject error", async () => {
+    vi.spyOn(decisions, "rejectRun").mockRejectedValue(new Error("nope"));
+    renderCard(run());
+    await userEvent.click(screen.getByRole("button", { name: "Reject…" }));
+    await userEvent.type(screen.getByLabelText("What should change?"), "x");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Send feedback" })
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent("nope");
+  });
+
+  it("refreshes the session queries after confirm", async () => {
+    vi.spyOn(decisions, "confirmRun").mockResolvedValue(run());
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SpecCard run={run()} />
+      </QueryClientProvider>
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["sessions", "s1"] })
+    );
+  });
+
+  it("shows the confirmed spec read-only for a failed run too", () => {
+    renderCard(
+      run({ status: "failed", proposed_spec: null, confirmed_spec: spec() })
+    );
+    expect(screen.getByText("Confirmed spec")).toBeVisible();
+    expect(screen.getByText("Hot room")).toBeVisible();
+    expect(screen.queryByRole("button")).toBeNull();
   });
 });

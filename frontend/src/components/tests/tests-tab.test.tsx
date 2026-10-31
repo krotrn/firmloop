@@ -221,4 +221,73 @@ describe("TestsTab", () => {
     renderTab(run());
     expect(await screen.findByRole("alert")).toHaveTextContent("boom");
   });
+
+  it("offers no expand button for passed and not-run rows", async () => {
+    mock(
+      [testCase("t1"), testCase("t2")],
+      [attempt(1, [{ test_id: "t1", passed: true }])]
+    );
+    renderTab(run());
+    await screen.findByText("Title t1");
+    const rows = screen.getAllByRole("row").slice(1);
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(within(row).queryByRole("button")).toBeNull();
+    }
+  });
+
+  it("collapses an expanded row on a second click", async () => {
+    mock(
+      [testCase("t1")],
+      [attempt(1, [{ test_id: "t1", passed: false, failures: [failure] }])]
+    );
+    renderTab(run());
+    const toggle = await screen.findByRole("button", { name: /t1/ });
+    await userEvent.click(toggle);
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Step 2")).toBeNull();
+  });
+
+  it("lists every failure of a case with its own step number", async () => {
+    const second = {
+      ...failure,
+      step_index: 3,
+      message: "display should say HOT",
+      observed_summary: "display: empty",
+    };
+    mock(
+      [testCase("t1")],
+      [
+        attempt(1, [
+          { test_id: "t1", passed: false, failures: [failure, second] },
+        ]),
+      ]
+    );
+    renderTab(run());
+    await userEvent.click(await screen.findByRole("button", { name: /t1/ }));
+    expect(screen.getByText("Step 2")).toBeInTheDocument();
+    expect(screen.getByText("Step 4")).toBeInTheDocument();
+    expect(screen.getByText("display: empty")).toBeInTheDocument();
+    expect(screen.getByText("fan: t=1000..1300 -> 0,0,0")).toBeInTheDocument();
+  });
+
+  it("shows the id in a monospace cell and the scenario title", async () => {
+    mock([testCase("t1")], []);
+    renderTab(run());
+    const id = await screen.findByText("t1");
+    expect(id.className).toContain("font-mono");
+    expect(screen.getByText("Title t1")).toBeInTheDocument();
+  });
+
+  it("shows the table headers id, origin, title and result", async () => {
+    mock([testCase("t1")], []);
+    renderTab(run());
+    await screen.findByText("Title t1");
+    for (const name of ["ID", "Origin", "Title", "Result"]) {
+      expect(
+        screen.getByRole("columnheader", { name: new RegExp(`^${name}$`, "i") })
+      ).toBeInTheDocument();
+    }
+  });
 });

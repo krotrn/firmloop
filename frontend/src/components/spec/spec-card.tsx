@@ -19,6 +19,7 @@ import {
   useRejectRun,
 } from "@/hooks/queries/use-run-decisions";
 import { useHardware } from "@/hooks/queries/use-hardware";
+import { describeExpectation } from "@/lib/expectation-words";
 import { isApiError } from "@/lib/fetcher";
 import {
   msToSeconds,
@@ -129,11 +130,7 @@ function ScenarioSummary({ scenario }: { scenario: Scenario }) {
           const sets = Object.entries(step.set ?? {})
             .map(([k, v]) => `${k} = ${String(v)}`)
             .join(", ");
-          const expects = step.expect
-            .map((e) =>
-              `${e.channel} ${e.op === "eq" ? "is" : e.op.replace(/_/g, " ")} ${String(e.value ?? e.source_channel ?? "")}`.trim()
-            )
-            .join("; ");
+          const expects = step.expect.map(describeExpectation).join("; ");
           return (
             <li key={i}>
               At {msToSeconds(step.at_ms)} s{sets ? ` set ${sets}` : ""}
