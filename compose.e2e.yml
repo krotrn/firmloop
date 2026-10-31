@@ -1,0 +1,60 @@
+# Isolated stack for the browser smoke test (`make e2e`):
+#   docker compose -p firmloop-e2e -f compose.yml -f compose.e2e.yml ...
+# The virtual device needs only the runner, so builder and device are not started. Nothing
+# publishes a host port; the Playwright container reaches the frontend and backend on the app
+# network. Images have their own tags so the development images are never retagged.
+
+services:
+  frontend:
+    image: firmloop-frontend:e2e
+    build:
+      args:
+        NEXT_PUBLIC_API_URL: http://backend:8000
+    ports: !reset []
+
+  backend:
+    image: firmloop-backend:e2e
+    env_file: !reset []
+    environment:
+      FIRMLOOP_ENV: test
+      LLM_PROVIDER: fake
+      LLM_FALLBACK_PROVIDER: ""
+      FAKE_LLM_DIR: /app/tests/fixtures/fake_llm/e2e
+      DEVICE_MODE: virtual
+      AUTO_APPROVE: "false"
+      RUNNER_URL: http://runner:8101
+      DATA_DIR: /data
+      DATABASE_URL: sqlite+aiosqlite:////data/firmloop.db
+      FRONTEND_ORIGINS: http://frontend:3000
+    ports: !reset []
+    volumes: !override
+      - ./hardware:/repo/hardware:ro
+      - ./firmware:/repo/firmware:ro
+      - ./benchmark:/repo/benchmark:ro
+    tmpfs:
+      - /data
+
+  runner:
+    image: firmloop-runner:e2e
+
+  e2e:
+    build:
+      context: ./frontend
+      dockerfile: e2e/Dockerfile
+    image: firmloop-e2e:e2e
+    profiles: [e2e]
+    user: "${E2E_UID:-1000}:${E2E_GID:-1000}"
+    working_dir: /app
+    environment:
+      HOME: /tmp
+      PLAYWRIGHT_TEST_BASE_URL: http://frontend:3000
+    volumes:
+      - ./frontend/e2e:/app/e2e:ro
+      - ./frontend/playwright.config.ts:/app/playwright.config.ts:ro
+      - ./e2e-output:/app/e2e-output
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    networks: [app]

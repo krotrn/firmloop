@@ -1,0 +1,106 @@
+{
+  "responses": [
+    {
+      "kind": "spec",
+      "spec": {
+        "summary": "Switch the fan on when the temperature is above 30 degrees C and off otherwise.",
+        "rules": [
+          {
+            "id": "r1",
+            "description": "Fan on when the temperature is above 30 degrees C, off otherwise",
+            "conditions": [
+              {
+                "channel": "temp",
+                "op": "gt",
+                "number": 30.0,
+                "flag": null
+              }
+            ],
+            "combine": "all",
+            "then": [
+              {
+                "channel": "fan",
+                "number": null,
+                "flag": true
+              }
+            ],
+            "otherwise": [
+              {
+                "channel": "fan",
+                "number": null,
+                "flag": false
+              }
+            ],
+            "hysteresis": null
+          }
+        ],
+        "scenarios": [
+          {
+            "id": "s1",
+            "title": "Hot room: fan on",
+            "given": [
+              {
+                "channel": "temp",
+                "number": 35.0,
+                "flag": null
+              }
+            ],
+            "steps": [
+              {
+                "at_ms": 0,
+                "set": [],
+                "expect": [
+                  {
+                    "channel": "fan",
+                    "op": "eq",
+                    "number": null,
+                    "flag": true,
+                    "text": null,
+                    "row": null,
+                    "source_channel": null,
+                    "tolerance": 0.0,
+                    "within_ms": 0,
+                    "hold_ms": 0
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "s2",
+            "title": "Cool room: fan off",
+            "given": [
+              {
+                "channel": "temp",
+                "number": 20.0,
+                "flag": null
+              }
+            ],
+            "steps": [
+              {
+                "at_ms": 0,
+                "set": [],
+                "expect": [
+                  {
+                    "channel": "fan",
+                    "op": "eq",
+                    "number": null,
+                    "flag": false,
+                    "text": null,
+                    "row": null,
+                    "source_channel": null,
+                    "tolerance": 0.0,
+                    "within_ms": 0,
+                    "hold_ms": 0
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "question": null
+    },
+    "Here is the program.\n```cpp\n#include \"FirmLoop.h\"\n\nvoid user_setup() { fl::setBool(\"fan\", false); }\n\nvoid user_tick(uint32_t now_ms) {\n  fl::setBool(\"fan\", fl::readFloat(\"temp\") > 30.0f);\n}\n```\n"
+  ]
+}

@@ -21,7 +21,7 @@ FRONTEND_RUN := $(FRONTEND_RUN_BASE) frontend
 FRONTEND_SHARED_RUN := $(FRONTEND_RUN_BASE) -v $(CURDIR)/shared:/shared:ro frontend
 
 .DEFAULT_GOAL := help
-.PHONY: help build up up-ollama ollama-pull try-understand down logs doctor test test-backend test-builder test-firmware test-frontend lint schemas bench bench-validate db-reset migrate
+.PHONY: help build up up-ollama ollama-pull try-understand down logs doctor test test-backend test-builder test-firmware test-frontend lint schemas bench bench-validate db-reset migrate e2e
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  %-15s %s\n", $$1, $$2}'
@@ -102,3 +102,14 @@ db-reset: ## Delete ./data (asks first) (not implemented yet)
 migrate: ## Apply Alembic migrations to the app database (the backend also does this on startup)
 	mkdir -p data
 	docker compose run --rm backend uv run --no-sync python -m firmloop.db.migrate
+
+# Browser smoke test on its own compose project (no host ports, in-memory database, fake LLM
+# provider). The stack is always removed, also when the tests fail or are interrupted; the exit
+# status is the tests'.
+E2E_COMPOSE := E2E_UID=$(shell id -u) E2E_GID=$(shell id -g) docker compose -p firmloop-e2e --profile e2e -f compose.yml -f compose.e2e.yml
+
+e2e: ## Playwright smoke test against an isolated stack (builds images, always tears down)
+	mkdir -p e2e-output
+	$(E2E_COMPOSE) build frontend backend runner e2e
+	trap '$(E2E_COMPOSE) down -v --remove-orphans' EXIT; trap 'exit 130' INT TERM; \
+	$(E2E_COMPOSE) up -d --wait frontend backend && $(E2E_COMPOSE) run --rm e2e
