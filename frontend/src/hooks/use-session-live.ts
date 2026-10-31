@@ -11,11 +11,21 @@ const REFETCH_EVENTS = new Set([
   "run.question",
   "run.spec_proposed",
   "run.finished",
+  "run.tests_generated",
+  "attempt.started",
+  "attempt.code",
+  "attempt.safety",
+  "attempt.compile",
+  "attempt.tests",
+  "deploy.build",
+  "deploy.flash",
+  "verify.check",
 ]);
 
 /**
  * Subscribes to one session and refetches its detail and runs when a run is created,
- * changes status, asks a question, proposes a spec or finishes. Returns the run events.
+ * changes status, asks a question, proposes a spec, generates tests, progresses an attempt,
+ * deploys, verifies or finishes. Returns the run events.
  */
 export function useSessionLive(sessionId: string) {
   const queryClient = useQueryClient();

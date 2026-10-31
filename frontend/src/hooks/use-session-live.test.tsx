@@ -103,6 +103,40 @@ describe("useSessionLive", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["sessions", "s1"] });
   });
 
+  it("invalidates for attempt, test, deploy and verify events", () => {
+    renderHook(() => useSessionLive("s1"), { wrapper: Wrapper });
+    const socket = FakeWebSocket.last;
+    act(() => socket.open());
+    const base = { ts: TS, run_id: "r1", session_id: "s1" };
+    const events = [
+      {
+        type: "run.tests_generated",
+        total: 3,
+        by_origin: { scenario: 3, boundary: 0, truth_table: 0 },
+        from_base: 0,
+      },
+      { type: "attempt.started", attempt_id: "a1", number: 1 },
+      { type: "attempt.code", attempt_id: "a1", code: "x" },
+      { type: "attempt.safety", attempt_id: "a1", ok: true, violations: [] },
+      { type: "attempt.compile", attempt_id: "a1", ok: true, log: "" },
+      { type: "deploy.build", ok: true, log: null, size: 100 },
+      { type: "deploy.flash", ok: true, message: null },
+      {
+        type: "verify.check",
+        kind: "self_check",
+        status: "passed",
+        details: "ok",
+      },
+    ];
+    for (const event of events) {
+      invalidate.mockClear();
+      act(() => socket.receive({ ...base, ...event }));
+      expect(invalidate, event.type).toHaveBeenCalledWith({
+        queryKey: ["sessions", "s1"],
+      });
+    }
+  });
+
   it("ignores another session's events and non-status events", () => {
     renderHook(() => useSessionLive("s1"), { wrapper: Wrapper });
     const socket = FakeWebSocket.last;
