@@ -55,7 +55,7 @@ sudo usermod -aG uucp "$USER"     # Arch (on Debian/Ubuntu the group is "dialout
 ## Setup
 
 ```bash
-git clone <repo-url> firmloop
+git clone https://github.com/krotrn/firmloop.git firmloop
 cd firmloop
 cp .env.example .env
 # edit .env: set LLM_PROVIDER and the matching key / URL (see .env.example comments)
