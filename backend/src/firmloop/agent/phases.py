@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from firmloop.agent.coder import MISSING_BLOCK_FEEDBACK, generate_code
+from firmloop.agent.coder import MISSING_BLOCK_FEEDBACK, TRUNCATED_FEEDBACK, generate_code
 from firmloop.agent.feedback import compile_feedback, failing_tests_feedback, safety_feedback
 from firmloop.agent.understand import understand
 from firmloop.board.state import Board
@@ -703,11 +703,17 @@ class Phases:
         )
         llm = repo.RunChange(provider=caller.provider.name, model=caller.provider.model)
         if result.code is None:
-            self.log(run, "warn", f"Attempt {number}: the reply had no ```cpp code block.")
+            if result.truncated:
+                message = f"Attempt {number}: the reply was cut off by the output limit."
+                feedback = TRUNCATED_FEEDBACK
+            else:
+                message = f"Attempt {number}: the reply had no ```cpp code block."
+                feedback = MISSING_BLOCK_FEEDBACK
+            self.log(run, "warn", message)
             await self._retry_or_fail(
                 run,
                 attempt,
-                MISSING_BLOCK_FEEDBACK,
+                feedback,
                 repo.AttemptChange(stage_reached="generated"),
                 change=llm,
             )

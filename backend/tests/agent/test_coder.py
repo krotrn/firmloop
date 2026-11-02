@@ -17,9 +17,10 @@ from firmloop.config import Settings
 from firmloop.db import repo
 from firmloop.db.models import LlmCall
 from firmloop.hardware.registry import Registry
+from firmloop.llm.base import LLMTruncated
 from firmloop.llm.fake import FakeProvider
 from firmloop.llm.structured import CallContext, StructuredCaller
-from firmloop.safety.checker import check
+from firmloop.safety.checker import MAX_BYTES, check
 from firmloop.spec import models as m
 
 from .test_understand import VALID_SPEC
@@ -121,7 +122,7 @@ def test_code_from_reply_uses_last_block_only() -> None:
 async def _run(
     engine: AsyncEngine,
     registry: Registry,
-    reply: str,
+    reply: str | Exception,
     *,
     header: str = HEADER,
     base_code: str | None = None,
@@ -212,3 +213,21 @@ async def test_empty_reply_counts_as_missing(
 ) -> None:
     result, _ = await _run(engine, registry, reply)
     assert result.missing_block
+
+
+async def test_truncated_reply_is_flagged(engine: AsyncEngine, registry: Registry) -> None:
+    result, _ = await _run(engine, registry, LLMTruncated("gemini reply was truncated"))
+
+    assert result.code is None
+    assert result.truncated
+    assert result.missing_block
+
+
+async def test_complete_reply_is_not_truncated(engine: AsyncEngine, registry: Registry) -> None:
+    result, _ = await _run(engine, registry, _fenced(GOOD))
+    assert not result.truncated
+
+
+def test_output_limit_fits_the_largest_file_the_checker_accepts() -> None:
+    # About 3 bytes of C++ per token, plus room for a short note around the block.
+    assert MAX_TOKENS * 3 >= MAX_BYTES * 2

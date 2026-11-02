@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from firmloop.db import repo
 from firmloop.errors import AppError, ErrorCode
-from firmloop.llm.base import LLMRateLimited, LLMTimeout, LLMUnavailable, Message
+from firmloop.llm.base import LLMRateLimited, LLMTimeout, LLMTruncated, LLMUnavailable, Message
 from firmloop.llm.fake import FakeProvider
 from firmloop.llm.structured import CallContext, SchemaFeedback, StructuredCaller, inline_refs
 from firmloop.spec.wire import WireError
@@ -220,6 +220,32 @@ async def test_call_text_falls_back(engine: AsyncEngine) -> None:
     assert out == "ok"
     rows = await _rows(engine)
     assert [(r["ok"], r["error_code"]) for r in rows] == [(0, "LLM_UNAVAILABLE"), (1, None)]
+
+
+async def test_call_text_lets_a_truncated_reply_through(engine: AsyncEngine) -> None:
+    fake = FakeProvider([LLMTruncated("cut off")])
+    ctx = CallContext(purpose="code")
+    with pytest.raises(LLMTruncated):
+        await _caller(engine, fake).call_text(MSGS, ctx=ctx, temperature=0.2, max_tokens=50)
+    rows = await _rows(engine)
+    assert [(r["ok"], r["error_code"]) for r in rows] == [(0, "LLM_UNAVAILABLE")]
+
+
+async def test_call_text_truncated_switches_to_the_fallback(engine: AsyncEngine) -> None:
+    primary = FakeProvider([LLMTruncated("cut off")])
+    fallback = FakeProvider(["ok"])
+    ctx = CallContext(purpose="code")
+    out = await _caller(engine, primary, fallback).call_text(
+        MSGS, ctx=ctx, temperature=0.2, max_tokens=50
+    )
+    assert out == "ok"
+
+
+async def test_structured_call_still_fails_the_call_on_truncation(engine: AsyncEngine) -> None:
+    fake = FakeProvider([LLMTruncated("cut off")])
+    with pytest.raises(AppError) as info:
+        await _call(_caller(engine, fake))
+    assert info.value.code is ErrorCode.LLM_UNAVAILABLE
 
 
 async def test_logging_failure_does_not_break_call(

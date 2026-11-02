@@ -6,14 +6,19 @@ from pydantic import BaseModel
 
 from firmloop.agent.templates import build_code_prompts
 from firmloop.hardware.registry import Registry
-from firmloop.llm.base import Message
+from firmloop.llm.base import LLMTruncated, Message
 from firmloop.llm.structured import CallContext, StructuredCaller
 from firmloop.spec import models as m
 
 TEMPERATURE = 0.2
-MAX_TOKENS = 3000
+# The checker accepts files up to 12000 bytes (about 4000 tokens); leave room for a short note.
+MAX_TOKENS = 8192
 
 MISSING_BLOCK_FEEDBACK = "Return the full file in one ```cpp block"
+TRUNCATED_FEEDBACK = (
+    "Your reply was cut off by the output limit before the code was complete. Return only the "
+    "full file in one ```cpp block, with short comments and no text before or after it."
+)
 
 _CPP_TAGS = frozenset({"cpp", "c++"})
 _OPENER = re.compile(r"^(`{3,})(.*)$")
@@ -24,11 +29,13 @@ class CodeResult(BaseModel):
     """The model's reply and the code taken from it.
 
     ``code`` is None when the reply had no closed, non-empty ``cpp`` block, so the attempt counts
-    as generated and is retried with ``MISSING_BLOCK_FEEDBACK``.
+    as generated and is retried with ``MISSING_BLOCK_FEEDBACK``. ``truncated`` means the provider
+    cut the reply off at the output limit; that attempt is retried with ``TRUNCATED_FEEDBACK``.
     """
 
     code: str | None
     raw: str
+    truncated: bool = False
 
     @property
     def missing_block(self) -> bool:
@@ -94,7 +101,8 @@ async def generate_code(
 
     ``header`` is the text of ``FirmLoop.h``. With ``base_code`` the request is a follow-up that
     changes that code. ``feedback`` describes what was wrong with ``previous_code``, the rejected
-    attempt. The reply is plain text; the code is the last ``cpp`` block in it.
+    attempt. The reply is plain text; the code is the last ``cpp`` block in it. A reply cut off
+    by the output limit gives ``truncated=True``.
     """
     system, user = build_code_prompts(
         registry,
@@ -104,10 +112,13 @@ async def generate_code(
         previous_code=previous_code,
         feedback=feedback,
     )
-    reply = await caller.call_text(
-        [Message(role="system", content=system), Message(role="user", content=user)],
-        ctx=ctx,
-        temperature=TEMPERATURE,
-        max_tokens=MAX_TOKENS,
-    )
+    try:
+        reply = await caller.call_text(
+            [Message(role="system", content=system), Message(role="user", content=user)],
+            ctx=ctx,
+            temperature=TEMPERATURE,
+            max_tokens=MAX_TOKENS,
+        )
+    except LLMTruncated:
+        return CodeResult(code=None, raw="", truncated=True)
     return code_from_reply(reply)

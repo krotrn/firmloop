@@ -6,10 +6,11 @@ import asyncio
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from firmloop.agent.coder import MISSING_BLOCK_FEEDBACK
+from firmloop.agent.coder import MISSING_BLOCK_FEEDBACK, TRUNCATED_FEEDBACK
 from firmloop.db import repo
 from firmloop.errors import AppError, ErrorCode
 from firmloop.hardware.registry import Registry
+from firmloop.llm.base import LLMTruncated
 from firmloop.spec import models as m
 from support.orchestration import (
     GOOD_CODE,
@@ -204,6 +205,42 @@ async def test_missing_block_is_retried_with_its_feedback(
     assert MISSING_BLOCK_FEEDBACK in retry_prompt
     assert "<previous_code>" not in retry_prompt
     assert len(h.runner.calls) == 1
+
+
+async def test_truncated_code_reply_is_retried_with_its_feedback(
+    engine: AsyncEngine, registry: Registry
+) -> None:
+    h = await make(
+        engine,
+        registry,
+        llm=[spec_reply(), LLMTruncated("fake reply was truncated"), code_reply()],
+        outcomes=["pass"],
+        auto_approve=True,
+    )
+    run = await h.request()
+
+    assert run.status == "succeeded"
+    attempts = await repo.get_attempts(engine, run.id)
+    assert (attempts[0].code, attempts[0].stage_reached) == (None, "generated")
+    assert attempts[0].feedback_sent == TRUNCATED_FEEDBACK
+    assert TRUNCATED_FEEDBACK in h.user_message(2)
+    assert len(h.runner.calls) == 1
+
+
+async def test_truncated_code_replies_use_up_the_attempts(
+    engine: AsyncEngine, registry: Registry
+) -> None:
+    h = await make(
+        engine,
+        registry,
+        llm=[spec_reply(), LLMTruncated("cut off"), LLMTruncated("cut off")],
+        auto_approve=True,
+        max_attempts=2,
+    )
+    run = await h.request()
+
+    assert (run.status, run.failure_code) == ("failed", "MAX_ATTEMPTS")
+    assert len(h.runner.calls) == 0
 
 
 async def test_safety_violation_never_reaches_the_runner(

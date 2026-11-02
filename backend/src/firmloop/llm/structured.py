@@ -15,6 +15,7 @@ from firmloop.llm.base import (
     LLMProvider,
     LLMRateLimited,
     LLMTimeout,
+    LLMTruncated,
     LLMUsage,
     Message,
     Sleep,
@@ -178,7 +179,14 @@ class StructuredCaller:
         temperature: float,
         max_tokens: int,
     ) -> str:
-        reply, _ = await self._provider_call(messages, ctx, 0, temperature, max_tokens, None)
+        """One plain-text call with no schema.
+
+        A reply cut off by the output limit raises ``LLMTruncated`` itself (after the fallback, if
+        any, was tried), so the caller can treat it as a failed attempt instead of a dead provider.
+        """
+        reply, _ = await self._provider_call(
+            messages, ctx, 0, temperature, max_tokens, None, raise_truncated=True
+        )
         return reply
 
     async def _provider_call(
@@ -191,6 +199,7 @@ class StructuredCaller:
         schema: dict[str, Any] | None,
         *,
         log_now: bool = True,
+        raise_truncated: bool = False,
     ) -> tuple[str, repo.NewLLMCall]:
         """One logical provider call, with the one-time switch to the fallback."""
         while True:
@@ -234,6 +243,8 @@ class StructuredCaller:
                     )
                     self._provider, self._fallback = self._fallback, None
                     continue
+                if raise_truncated and isinstance(exc, LLMTruncated):
+                    raise
                 app_code = (
                     ErrorCode.LLM_TIMEOUT
                     if code is ErrorCode.LLM_TIMEOUT
