@@ -34,6 +34,8 @@ from firmloop.api.device import (
     run_device_command,
 )
 from firmloop.api.meta import HardwareOut, hardware_out
+from firmloop.api.runs import TEXT_MAX
+from firmloop.api.sessions import TITLE_MAX
 from firmloop.api.versions import (
     VersionDiffOut,
     VersionList,
@@ -75,8 +77,6 @@ MCP_PATH = "/mcp"
 DEFAULT_ALLOWED_HOSTS = ("127.0.0.1:8000", "localhost:8000")
 WORK_DEFAULT_WAIT_S = 50
 WORK_MAX_WAIT_S = 55
-REQUEST_MAX = 2000
-TITLE_MAX = 200
 SOURCE_MAX = 200_000
 MODEL_MAX = 200
 DEVICE_WAIT_MAX_MS = 5000
@@ -264,7 +264,7 @@ class _Tools:
     async def start_run(
         self,
         session_id: str,
-        request: Annotated[str, Field(min_length=1, max_length=REQUEST_MAX)],
+        request: Annotated[str, Field(min_length=1, max_length=TEXT_MAX)],
         cancel_waiting: bool = False,
     ) -> RunOut:
         run = await self._orch.start_request(
@@ -276,7 +276,7 @@ class _Tools:
         return await self._run(run_id)
 
     async def answer(
-        self, run_id: str, answer: Annotated[str, Field(min_length=1, max_length=REQUEST_MAX)]
+        self, run_id: str, answer: Annotated[str, Field(min_length=1, max_length=TEXT_MAX)]
     ) -> RunOut:
         run = await self._orch.answer(run_id, answer)
         return await run_out(self._engine, self._registry, run)
@@ -286,7 +286,7 @@ class _Tools:
         return await run_out(self._engine, self._registry, run)
 
     async def reject(
-        self, run_id: str, feedback: Annotated[str, Field(min_length=1, max_length=REQUEST_MAX)]
+        self, run_id: str, feedback: Annotated[str, Field(min_length=1, max_length=TEXT_MAX)]
     ) -> RunOut:
         run = await self._orch.reject(run_id, feedback)
         return await run_out(self._engine, self._registry, run)
