@@ -6,7 +6,6 @@ import { CodeTab } from "@/components/code/code-tab";
 import { DevicePanel } from "@/components/device/device-panel";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { AttemptsList } from "@/components/run/attempts-list";
-import { ChatWaitStep } from "@/components/run/chat-wait-step";
 import { RunLog } from "@/components/run/run-log";
 import { RunTimeline } from "@/components/run/run-timeline";
 import { RunStatusBadge } from "@/components/runs/run-status-badge";
@@ -108,8 +107,11 @@ export function RunPanel({
         {run ? (
           <div className="flex flex-col gap-8">
             <RunSummary run={run} sessionId={sessionId} />
-            <RunTimeline run={run} deviceMode={deviceMode} />
-            <ChatWaitStep state={chatWait} runStatus={run.status} />
+            <RunTimeline
+              run={run}
+              deviceMode={deviceMode}
+              chatWait={chatWait}
+            />
             <AttemptsList run={run} />
             <RunLog key={run.id} lines={logLines} />
           </div>

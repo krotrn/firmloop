@@ -123,7 +123,8 @@ describe("RunPanel chat step", () => {
         submit_tool: "submit_spec",
       })
     );
-    expect(screen.getByText("Waiting for chat")).toBeInTheDocument();
+    const steps = screen.getByRole("heading", { name: "Steps" }).parentElement;
+    expect(steps).toHaveTextContent("Waiting for chat");
     rerender(
       <RunPanel
         run={{ ...run("r1"), status: "cancelled" }}

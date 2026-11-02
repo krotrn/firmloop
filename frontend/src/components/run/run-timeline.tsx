@@ -7,7 +7,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { runSteps, type StepState } from "@/lib/run-steps";
+import type { ChatWaitState } from "@/hooks/use-chat-wait";
+import { isTerminal } from "@/lib/run-status";
+import { runSteps, type RunStep, type StepState } from "@/lib/run-steps";
 import { cn } from "@/lib/utils";
 import type { DeviceStatus } from "@/services/device.service";
 import type { Run } from "@/services/runs.service";
@@ -40,14 +42,42 @@ const STATE_VIEW: Record<
   },
 };
 
+const CHAT_STEP_KEY = "chat" as const;
+
+/**
+ * The steps with the chat wait inserted right after the step it happens in. A wait on a run that
+ * already ended is dropped; an answered one is shown done.
+ */
+function withChatStep(
+  steps: RunStep[],
+  chatWait: ChatWaitState,
+  runStatus: string
+): Array<RunStep | (Omit<RunStep, "key"> & { key: typeof CHAT_STEP_KEY })> {
+  const waiting = chatWait === "waiting" && !isTerminal(runStatus);
+  if (!waiting && chatWait !== "answered") return steps;
+  const chat = {
+    key: CHAT_STEP_KEY,
+    label: "Waiting for chat",
+    state: (waiting ? "current" : "done") as StepState,
+  };
+  let at = steps.findIndex(
+    (s) => s.state === "current" || s.state === "waiting"
+  );
+  if (at < 0) at = steps.findIndex((s) => s.state === "failed");
+  if (at < 0) return [...steps, chat];
+  return [...steps.slice(0, at + 1), chat, ...steps.slice(at + 1)];
+}
+
 export function RunTimeline({
   run,
   deviceMode,
+  chatWait = "idle",
 }: {
   run: Run;
   deviceMode: DeviceStatus["mode"] | null;
+  chatWait?: ChatWaitState;
 }) {
-  const steps = runSteps(run, deviceMode);
+  const steps = withChatStep(runSteps(run, deviceMode), chatWait, run.status);
   return (
     <section
       aria-labelledby="run-timeline-heading"

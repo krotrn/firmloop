@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -30,5 +30,30 @@ describe("ChatConnect", () => {
     await user.click(screen.getByRole("button", { name: "Copy command" }));
     expect(writeText).toHaveBeenCalledWith(CHAT_CONNECT_COMMAND);
     expect(await screen.findByText("Copied")).toBeVisible();
+  });
+
+  it("clears the copied label after a moment", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+      render(<ChatConnect />);
+      await userEvent
+        .setup({ advanceTimers: vi.advanceTimersByTime })
+        .click(screen.getByRole("button", { name: "Copy command" }));
+      expect(await screen.findByText("Copied")).toBeVisible();
+      act(() => vi.advanceTimersByTime(2100));
+      expect(screen.queryByText("Copied")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("says so when the clipboard write is rejected", async () => {
+    vi.spyOn(navigator.clipboard, "writeText").mockRejectedValue(
+      new Error("denied")
+    );
+    render(<ChatConnect />);
+    await userEvent.click(screen.getByRole("button", { name: "Copy command" }));
+    expect(await screen.findByText("Copy failed")).toBeVisible();
   });
 });

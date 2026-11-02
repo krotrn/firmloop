@@ -49,4 +49,36 @@ describe("RunTimeline", () => {
     expect(screen.getByText("Load into virtual board")).toBeInTheDocument();
     expect(screen.getByText("(skipped in virtual)")).toBeInTheDocument();
   });
+
+  it("adds a running chat step after the current step while waiting", () => {
+    render(<RunTimeline run={run()} deviceMode="real" chatWait="waiting" />);
+    const items = within(screen.getByRole("list")).getAllByRole("listitem");
+    expect(items).toHaveLength(10);
+    expect(items[3]).toHaveTextContent("Write code");
+    expect(items[4]).toHaveTextContent("Waiting for chat");
+    expect(items[4]).toHaveTextContent("In progress");
+    expect(items[4]).toHaveAttribute("aria-current", "step");
+  });
+
+  it("shows the chat step done once answered", () => {
+    render(<RunTimeline run={run()} deviceMode="real" chatWait="answered" />);
+    const item = screen
+      .getAllByRole("listitem")
+      .find((li) => li.textContent?.includes("Waiting for chat"));
+    expect(item).toHaveTextContent("Done");
+    expect(item).not.toHaveAttribute("aria-current");
+  });
+
+  it("shows no chat step when idle or when the run ended while waiting", () => {
+    const { rerender } = render(<RunTimeline run={run()} deviceMode="real" />);
+    expect(screen.queryByText("Waiting for chat")).not.toBeInTheDocument();
+    rerender(
+      <RunTimeline
+        run={run({ status: "cancelled" })}
+        deviceMode="real"
+        chatWait="waiting"
+      />
+    );
+    expect(screen.queryByText("Waiting for chat")).not.toBeInTheDocument();
+  });
 });

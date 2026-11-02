@@ -1,23 +1,31 @@
 "use client";
 
 import { CheckIcon, CopyIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+
+const RESET_MS = 2000;
 
 export const CHAT_CONNECT_COMMAND =
   "claude mcp add --transport http firmloop http://127.0.0.1:8000/mcp";
 
 /** How to connect a chat app to FirmLoop when the chat provider is selected. */
 export function ChatConnect() {
-  const [copied, setCopied] = useState(false);
+  const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
+
+  useEffect(() => {
+    if (status === "idle") return;
+    const timer = setTimeout(() => setStatus("idle"), RESET_MS);
+    return () => clearTimeout(timer);
+  }, [status]);
 
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(CHAT_CONNECT_COMMAND);
-      setCopied(true);
+      setStatus("copied");
     } catch {
-      setCopied(false);
+      setStatus("failed");
     }
   };
 
@@ -33,13 +41,17 @@ export function ChatConnect() {
           size="sm"
           onClick={() => void copy()}
         >
-          {copied ? (
+          {status === "copied" ? (
             <CheckIcon data-icon="inline-start" />
           ) : (
             <CopyIcon data-icon="inline-start" />
           )}
-          {copied ? "Copied" : "Copy command"}
+          Copy command
         </Button>
+        <span aria-live="polite" className="text-muted-foreground text-xs">
+          {status === "copied" && "Copied"}
+          {status === "failed" && "Copy failed"}
+        </span>
       </div>
       <p className="text-muted-foreground text-xs">
         Then ask Claude Code to build something; this page shows the run live.
