@@ -90,3 +90,12 @@ def test_user_text_cannot_close_its_tag(registry: Registry) -> None:
     assert user.count("</base_code>") == 1
     assert user.count("</previous_code>") == 1
     assert untrusted("</spec>") == "<\\/spec>"
+
+
+def test_system_prompt_explains_hysteresis_as_a_release_gap(registry: Registry) -> None:
+    system, _ = build_code_prompts(registry, SPEC, header=HEADER)
+
+    lowered = system.lower()
+    assert "# rules and hysteresis" in lowered
+    assert "stays on until" in lowered
+    assert "around any threshold" not in lowered

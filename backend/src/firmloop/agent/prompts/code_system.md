@@ -38,6 +38,17 @@ Code only knows channels, never pins or drivers. A channel id is always a string
 {% if display_rows %}- The display has rows 0 to {{ display_rows - 1 }}. A line is cut to 21 characters.
 {% endif %}- An actuator keeps the value you last set. Set it on every tick (or whenever it changes) so it always matches the rules, including the state after boot.
 
+# Rules and hysteresis
+
+A rule in the spec sets its `then` actuators while its conditions hold and its `otherwise` actuators while they do not. The threshold in the condition is exact: the rule switches on as soon as the condition becomes true, never earlier or later.
+
+A rule's `hysteresis` h only delays switching back, so the actuator does not flutter. The gap lies on the release side of the threshold, never on both sides:
+
+- `gt` / `gte` V: on as soon as the condition holds (above V); once on, it stays on until the value drops below V - h.
+- `lt` / `lte` V: on as soon as the condition holds (below V); once on, it stays on until the value rises above V + h.
+
+For example `light lt 500` with hysteresis 100: the LED turns on at 499, stays on at 599, and turns off at 601. It does not wait for 399 to turn on.
+
 # Notes on the components
 
 {{ ai_notes | trim }}
