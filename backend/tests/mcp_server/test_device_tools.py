@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from api.conftest import build_app
 from firmloop.db.models import Version
 from firmloop.errors import AppError, ErrorCode
+from firmloop.events.bus import EventBus
 from firmloop.events.models import DeviceStatusEvent, DeviceTelemetryEvent
 from firmloop.hardware.registry import Registry
 from firmloop.llm.chat import ChatProvider
@@ -384,7 +385,7 @@ async def test_telemetry_follower_survives_a_failure(
     async with _client(app) as session:
         h.bus.publish(_event(1))
         h.bus.publish(_event(2))
-        await _drain()
+        await asyncio.sleep(0.3)
         assert (await _ok(session, "device_status"))["telemetry"]["t"] == 2
 
 
@@ -402,3 +403,76 @@ async def test_list_versions_pages_with_a_cursor(
         )
         assert [v["id"] for v in rest["items"]] == [v1]
         assert rest["next_cursor"] is None
+
+
+def _status(*, connected: bool, mode: str = "virtual") -> DeviceStatusEvent:
+    return DeviceStatusEvent(status=DeviceStatus(mode=mode, connected=connected))  # type: ignore[arg-type]
+
+
+async def test_telemetry_after_a_disconnect_or_in_real_mode_is_ignored(
+    engine: AsyncEngine, registry: Registry
+) -> None:
+    app, h, _t = await build_app(engine, registry)
+    async with _client(app) as session:
+        for refused in (_status(connected=False), _status(connected=True, mode="real")):
+            h.bus.publish(refused)
+            h.bus.publish(_event(5))
+            await _drain()
+            assert (await _ok(session, "device_status"))["telemetry"] is None
+        h.bus.publish(_status(connected=True))
+        h.bus.publish(_event(6))
+        await _drain()
+        assert (await _ok(session, "device_status"))["telemetry"]["t"] == 6
+
+
+async def test_the_first_status_clears_the_reading(engine: AsyncEngine, registry: Registry) -> None:
+    app, h, _t = await build_app(engine, registry)
+    async with _client(app) as session:
+        h.bus.publish(_event(1))
+        await _drain()
+        assert (await _ok(session, "device_status"))["telemetry"]["t"] == 1
+        h.bus.publish(_status(connected=True, mode="real"))
+        await _drain()
+        assert (await _ok(session, "device_status"))["telemetry"] is None
+
+
+async def test_an_overflow_forgets_the_reading_and_the_state() -> None:
+    bus = EventBus(max_queue=2)
+    tracker = LatestTelemetry(bus)
+    async with tracker.run():
+        bus.publish(_status(connected=False))
+        await _drain()
+        assert tracker.latest is None
+        for _ in range(3):  # more than the queue holds, so events are dropped
+            bus.publish(_status(connected=True))
+        await _drain()
+        tracker.apply(_event(1))
+        assert tracker.latest is not None
+        bus.publish(_status(connected=False))
+        for _ in range(3):
+            bus.publish(_status(connected=True))
+        await _drain()
+        assert tracker.latest is None
+        bus.publish(_event(2))
+        await _drain()
+        assert tracker.latest is not None and tracker.latest.t == 2
+
+
+async def test_a_failing_event_does_not_spin_the_follower(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bus = EventBus()
+    tracker = LatestTelemetry(bus)
+    calls = 0
+
+    def always_fails(event: Any) -> None:
+        nonlocal calls
+        calls += 1
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(tracker, "apply", always_fails)
+    async with tracker.run():
+        bus.publish(_event(1))
+        bus.publish(_event(2))
+        await asyncio.sleep(0.05)
+    assert calls == 1

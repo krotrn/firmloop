@@ -80,6 +80,8 @@ TITLE_MAX = 200
 SOURCE_MAX = 200_000
 MODEL_MAX = 200
 DEVICE_WAIT_MAX_MS = 5000
+FOLLOW_RETRY_S = 0.1
+"""Pause after a device event could not be handled, so a persistent failure does not spin."""
 WAKE_EVENTS = ("run.status", "run.llm_waiting", "run.finished")
 """Events of the awaited run after which `work` looks at the run again."""
 
@@ -157,7 +159,7 @@ class LatestTelemetry:
         self._bus = bus
         self._clock = clock
         self._latest: tuple[TelemetrySnapshot, float] | None = None
-        self._mode: str | None = None
+        self._accepting = True  # until a status says otherwise
 
     @property
     def latest(self) -> TelemetrySnapshot | None:
@@ -169,15 +171,22 @@ class LatestTelemetry:
             return None
         return max(0, round((self._clock() - self._latest[1]) * 1000))
 
+    def reset(self) -> None:
+        """Forget the reading and what the statuses said."""
+        self._latest = None
+        self._accepting = True
+
     def apply(self, event: ServerEvent) -> None:
         if isinstance(event, DeviceTelemetryEvent):
-            snapshot = TelemetrySnapshot.model_validate(event.model_dump(exclude={"type", "ts"}))
-            self._latest = (snapshot, self._clock())
+            if self._accepting:
+                snapshot = TelemetrySnapshot.model_validate(
+                    event.model_dump(exclude={"type", "ts"})
+                )
+                self._latest = (snapshot, self._clock())
         elif isinstance(event, DeviceStatusEvent):
-            status = event.status
-            if not status.connected or (self._mode is not None and status.mode != self._mode):
+            self._accepting = event.status.connected and event.status.mode == "virtual"
+            if not self._accepting:
                 self._latest = None
-            self._mode = status.mode
 
     @asynccontextmanager
     async def run(self) -> AsyncGenerator[None]:
@@ -189,11 +198,14 @@ class LatestTelemetry:
                 try:
                     self.apply(await sub.get())
                 except ConnectionAbortedError:
-                    # Events were dropped: subscribe again; the next telemetry event replaces it.
+                    # Events were dropped, maybe a disconnect: forget what is known and subscribe
+                    # again; the next status and telemetry events rebuild it.
+                    self.reset()
                     self._bus.unsubscribe(sub)
                     sub = self._bus.subscribe()
                 except Exception:
                     logger.exception("could not handle a device event")
+                    await asyncio.sleep(FOLLOW_RETRY_S)
 
         task = asyncio.create_task(follow())
         try:
