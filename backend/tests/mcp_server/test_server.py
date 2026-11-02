@@ -13,9 +13,11 @@ from mcp.client.session import ClientSession
 from mcp.shared.memory import create_connected_server_and_client_session
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from firmloop.events.models import RunLogEvent
 from firmloop.hardware.registry import Registry
 from firmloop.llm.chat import ChatProvider
 from firmloop.main import assemble_app
+from firmloop.mcp.server import SOURCE_MAX
 from support.orchestration import (
     GOOD_CODE,
     QUESTION_REPLY,
@@ -298,6 +300,86 @@ async def test_start_run_while_another_works_is_run_active(
 
         assert error["code"] == "RUN_ACTIVE"
         assert set(error) == {"code", "message", "details"}
+        await _ok(session, "cancel", {"run_id": run_id})
+    await h.orch.shutdown()
+
+
+async def test_work_recovers_from_a_subscriber_queue_overflow(
+    engine: AsyncEngine, registry: Registry
+) -> None:
+    provider = GatedProvider([spec_reply()], block_at=0)
+    app, h = await _app(engine, registry, provider=provider)
+    h.bus._max_queue = 1  # pyright: ignore[reportPrivateUsage]
+    async with _client(app) as session:
+        session_id, run_id = await _start(session)
+        await provider.reached.wait()
+        waiting = asyncio.create_task(
+            _ok(session, "work", {"run_id": run_id, "wait_s": 10}), name="work"
+        )
+        await asyncio.sleep(0.05)
+
+        for _ in range(3):
+            h.bus.publish(
+                RunLogEvent(run_id=run_id, session_id=session_id, level="info", message="x"),
+                session_id,
+            )
+        await asyncio.sleep(0.05)
+        await _ok(session, "cancel", {"run_id": run_id})
+        result = await waiting
+
+        assert (result["kind"], result["status"]) == ("finished", "cancelled")
+        assert h.bus.subscriber_count == 0
+    await h.orch.shutdown()
+
+
+async def test_work_releases_its_subscription(engine: AsyncEngine, registry: Registry) -> None:
+    provider = GatedProvider([spec_reply()], block_at=0)
+    app, h = await _app(engine, registry, provider=provider)
+    async with _client(app) as session:
+        _, run_id = await _start(session)
+        await provider.reached.wait()
+        baseline = h.bus.subscriber_count
+
+        assert (await _ok(session, "work", {"run_id": run_id, "wait_s": 1}))["kind"] == "working"
+        assert h.bus.subscriber_count == baseline
+
+        assert (await _error(session, "work", {"run_id": "missing"}))["code"] == "NOT_FOUND"
+        assert h.bus.subscriber_count == baseline
+
+        cancelled = asyncio.create_task(
+            app.state.mcp.call_tool("work", {"run_id": run_id, "wait_s": 30}), name="work"
+        )
+        await asyncio.sleep(0.05)
+        assert h.bus.subscriber_count == baseline + 1
+        cancelled.cancel()
+        await asyncio.gather(cancelled, return_exceptions=True)
+        await asyncio.sleep(0.05)
+        assert h.bus.subscriber_count == baseline
+
+        await _ok(session, "cancel", {"run_id": run_id})
+        assert (await _ok(session, "work", {"run_id": run_id}))["kind"] == "finished"
+        assert h.bus.subscriber_count == baseline
+    await h.orch.shutdown()
+
+
+async def test_over_long_source_and_model_are_validation_errors(
+    engine: AsyncEngine, registry: Registry
+) -> None:
+    app, h = await _app(engine, registry, providers=_chat_providers)
+    async with _client(app) as session:
+        _, run_id = await _start(session)
+        task = await _ok(session, "work", {"run_id": run_id, "wait_s": 5})
+        task_id = task["task_id"]
+
+        too_long = {"task_id": task_id, "source": "x" * (SOURCE_MAX + 1)}
+        assert (await _error(session, "submit_code", too_long))["code"] == "VALIDATION"
+        bad_model = {"task_id": task_id, "result": json.loads(spec_reply()), "model": "m" * 201}
+        assert (await _error(session, "submit_spec", bad_model))["code"] == "VALIDATION"
+        bad_model = {"task_id": task_id, "source": "x", "model": "m" * 201}
+        assert (await _error(session, "submit_code", bad_model))["code"] == "VALIDATION"
+
+        pending = h.orch.chat.pending(run_id)
+        assert pending is not None and pending.task_id == task_id
         await _ok(session, "cancel", {"run_id": run_id})
     await h.orch.shutdown()
 

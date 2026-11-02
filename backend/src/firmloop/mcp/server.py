@@ -26,9 +26,9 @@ from firmloop.api.views import (
     RunOut,
     SessionList,
     SessionOut,
-    next_cursor,
+    create_session_out,
     run_out,
-    sessions_out,
+    session_page,
 )
 from firmloop.db import repo
 from firmloop.db.models import TERMINAL_RUN_STATUSES
@@ -46,6 +46,8 @@ WORK_DEFAULT_WAIT_S = 50
 WORK_MAX_WAIT_S = 55
 REQUEST_MAX = 2000
 TITLE_MAX = 200
+SOURCE_MAX = 200_000
+MODEL_MAX = 200
 WAKE_EVENTS = ("run.status", "run.llm_waiting", "run.finished")
 """Events of the awaited run after which `work` looks at the run again."""
 
@@ -124,22 +126,12 @@ class _Tools:
         return cast(EventBus, self._app.state.event_bus)
 
     async def list_sessions(self) -> SessionList:
-        rows = await repo.list_sessions(self._engine, archived=False, limit=MAX_LIMIT + 1, offset=0)
-        return SessionList(
-            items=await sessions_out(self._engine, rows[:MAX_LIMIT]),
-            next_cursor=next_cursor(0, MAX_LIMIT, len(rows)),
-        )
+        return await session_page(self._engine, archived=False, limit=MAX_LIMIT, offset=0)
 
     async def create_session(
         self, title: Annotated[str | None, Field(min_length=1, max_length=TITLE_MAX)] = None
     ) -> SessionOut:
-        row = (
-            await repo.create_session(self._engine)
-            if title is None
-            else await repo.create_session(self._engine, title)
-        )
-        (out,) = await sessions_out(self._engine, [row])
-        return out
+        return await create_session_out(self._engine, title)
 
     async def start_run(
         self,
@@ -176,20 +168,31 @@ class _Tools:
         return await run_out(self._engine, self._registry, run)
 
     async def submit_spec(
-        self, task_id: str, result: WireUnderstandResult, model: str | None = None
+        self,
+        task_id: str,
+        result: WireUnderstandResult,
+        model: Annotated[str | None, Field(max_length=MODEL_MAX)] = None,
     ) -> Accepted:
         self._orch.chat.submit(task_id, "submit_spec", result.model_dump_json(), model=model)
         return Accepted()
 
     async def submit_followup_spec(
-        self, task_id: str, result: WireFollowupUnderstandResult, model: str | None = None
+        self,
+        task_id: str,
+        result: WireFollowupUnderstandResult,
+        model: Annotated[str | None, Field(max_length=MODEL_MAX)] = None,
     ) -> Accepted:
         self._orch.chat.submit(
             task_id, "submit_followup_spec", result.model_dump_json(), model=model
         )
         return Accepted()
 
-    async def submit_code(self, task_id: str, source: str, model: str | None = None) -> Accepted:
+    async def submit_code(
+        self,
+        task_id: str,
+        source: Annotated[str, Field(max_length=SOURCE_MAX)],
+        model: Annotated[str | None, Field(max_length=MODEL_MAX)] = None,
+    ) -> Accepted:
         self._orch.chat.submit(task_id, "submit_code", source, model=model)
         return Accepted()
 
@@ -213,11 +216,18 @@ class _Tools:
                 ready = self._for_chat(out)
                 if ready is not None:
                     return ready
-                event = await self._next_event(sub, deadline)
-                while event is not None and not self._wakes(event, run_id):
-                    if isinstance(event, RunLogEvent) and event.run_id == run_id:
-                        last_log = event.message
+                try:
                     event = await self._next_event(sub, deadline)
+                    while event is not None and not self._wakes(event, run_id):
+                        if isinstance(event, RunLogEvent) and event.run_id == run_id:
+                            last_log = event.message
+                        event = await self._next_event(sub, deadline)
+                except ConnectionAbortedError:
+                    # Events were dropped: subscribe again and read the run's state afresh.
+                    self._bus.unsubscribe(sub)
+                    sub = self._bus.subscribe()
+                    sub.session_id = first.session_id
+                    continue
                 if event is None:
                     out = await self._run(run_id)
                     return self._for_chat(out) or {

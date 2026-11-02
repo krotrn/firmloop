@@ -185,6 +185,28 @@ async def sessions_out(engine: AsyncEngine, rows: Sequence[SessionRow]) -> list[
     return [session_out(r, versions, last_runs) for r in rows]
 
 
+async def session_page(
+    engine: AsyncEngine, *, archived: bool, limit: int, offset: int
+) -> SessionList:
+    """One page of sessions starting at `offset`."""
+    rows = await repo.list_sessions(engine, archived=archived, limit=limit + 1, offset=offset)
+    return SessionList(
+        items=await sessions_out(engine, rows[:limit]),
+        next_cursor=next_cursor(offset, limit, len(rows)),
+    )
+
+
+async def create_session_out(engine: AsyncEngine, title: str | None) -> SessionOut:
+    """A new session, titled `title` or with the default title."""
+    row = (
+        await repo.create_session(engine)
+        if title is None
+        else await repo.create_session(engine, title)
+    )
+    (out,) = await sessions_out(engine, [row])
+    return out
+
+
 def attempt_summary_out(attempt: Attempt) -> AttemptSummaryOut:
     return AttemptSummaryOut(
         id=attempt.id,

@@ -12,8 +12,9 @@ from firmloop.api.views import (
     MAX_LIMIT,
     SessionList,
     SessionOut,
-    next_cursor,
+    create_session_out,
     parse_cursor,
+    session_page,
     sessions_out,
 )
 from firmloop.db import repo
@@ -48,24 +49,14 @@ async def list_sessions(
     limit: Annotated[int, Query(ge=1, le=MAX_LIMIT)] = DEFAULT_LIMIT,
     cursor: str | None = None,
 ) -> SessionList:
-    offset = parse_cursor(cursor)
-    rows = await repo.list_sessions(engine, archived=archived, limit=limit + 1, offset=offset)
-    return SessionList(
-        items=await sessions_out(engine, rows[:limit]),
-        next_cursor=next_cursor(offset, limit, len(rows)),
-    )
+    return await session_page(engine, archived=archived, limit=limit, offset=parse_cursor(cursor))
 
 
 @router.post("/sessions", status_code=status.HTTP_201_CREATED)
 async def create_session(
     engine: EngineDep, body: Annotated[CreateSessionBody | None, Body()] = None
 ) -> SessionOut:
-    if body is None or body.title is None:
-        row = await repo.create_session(engine)
-    else:
-        row = await repo.create_session(engine, body.title)
-    (out,) = await sessions_out(engine, [row])
-    return out
+    return await create_session_out(engine, None if body is None else body.title)
 
 
 @router.get("/sessions/{session_id}")
