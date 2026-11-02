@@ -93,6 +93,54 @@ ollama pull qwen2.5-coder:7b
 
 Local models are slow on a 4 GB GPU; `.env` sets `OLLAMA_TIMEOUT_S=300` and `OLLAMA_NUM_CTX=8192` for this.
 
+## Use from a chat app
+
+Instead of an API key, you can let a chat app write the AI steps. Claude Code is the supported client.
+
+Pick **Chat app (MCP)** as the provider in Settings. The chat app answers the AI steps. FirmLoop still runs every other step (safety check, native tests, build, flash and verification), and the browser shows the run live, including a "Waiting for chat" step while the chat is working.
+
+Connect Claude Code to the FirmLoop server (the stack must be running):
+
+```bash
+claude mcp add --transport http firmloop http://127.0.0.1:8000/mcp
+```
+
+Clients that only start local stdio servers can use the relay instead. Add this to the client's MCP config, with `cwd` set to your FirmLoop folder:
+
+```json
+{
+  "mcpServers": {
+    "firmloop": {
+      "command": "uv",
+      "args": ["run", "--project", "backend", "python", "backend/scripts/mcp_stdio.py"],
+      "cwd": "/path/to/firmloop"
+    }
+  }
+}
+```
+
+The relay uses `http://127.0.0.1:8000/mcp` by default. To use another port, pass the URL as an argument or set `FIRMLOOP_MCP_URL`. Only localhost URLs are accepted.
+
+**Example.** In Claude Code, write:
+
+> Make the fan turn on above 30 °C
+
+The chat proposes a spec and shows it to you. Reply yes to confirm, and the chat writes the code. The run finishes in the browser, and the new version is on the board. Then try:
+
+> Set temp to 32 and check the fan
+
+The chat moves the virtual temperature sensor and reports whether the fan turned on.
+
+**What the chat may do.** It can start and follow runs, answer questions and confirm or reject specs. It can list and compare versions, read the device status and telemetry, and in virtual mode move sensors. It can also roll back, set overrides and reboot a real board, but it asks you first each time. Settings (provider, device mode and the rest) stay in the browser.
+
+**Limits**
+
+- Use it interactively only, in the chat app's official client with your own account. FirmLoop never sees or stores chat-app credentials.
+- The chat has 300 s to answer each step (`CHAT_TIMEOUT_S`). If it does not, the run fails with `LLM_TIMEOUT`.
+- The chat cannot be the fallback provider.
+- Benchmarks use the API providers only.
+- The "Waiting for chat" step is not restored after a page reload.
+
 ---
 
 ## Running
