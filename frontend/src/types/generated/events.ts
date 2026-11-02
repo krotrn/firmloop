@@ -9,7 +9,7 @@ export type SessionId = string
 export type Type = "subscribe"
 export type Type1 = "unsubscribe"
 export type Type2 = "ping"
-export type ServerEvent = (HelloEvent | PongEvent | RunCreatedEvent | RunStatusEvent | RunLogEvent | RunQuestionEvent | RunSpecProposedEvent | RunTestsGeneratedEvent | AttemptStartedEvent | AttemptCodeEvent | AttemptSafetyEvent | AttemptCompileEvent | AttemptTestsEvent | DeployBuildEvent | DeployFlashEvent | VerifyCheckEvent | RunFinishedEvent | DeviceStatusEvent | DeviceReconcileEvent | DeviceTelemetryEvent | DeviceErrorEvent | BenchmarkProgressEvent | BenchmarkFinishedEvent)
+export type ServerEvent = (HelloEvent | PongEvent | RunCreatedEvent | RunStatusEvent | RunLogEvent | RunQuestionEvent | RunLlmWaitingEvent | RunLlmAnsweredEvent | RunSpecProposedEvent | RunTestsGeneratedEvent | AttemptStartedEvent | AttemptCodeEvent | AttemptSafetyEvent | AttemptCompileEvent | AttemptTestsEvent | DeployBuildEvent | DeployFlashEvent | VerifyCheckEvent | RunFinishedEvent | DeviceStatusEvent | DeviceReconcileEvent | DeviceTelemetryEvent | DeviceErrorEvent | BenchmarkProgressEvent | BenchmarkFinishedEvent)
 export type Proto = number
 export type Server = "firmloop"
 export type Ts = string
@@ -36,10 +36,21 @@ export type RunId2 = string
 export type SessionId3 = string
 export type Ts5 = string
 export type Type8 = "run.question"
-export type AutoApproved = boolean
-export type Boundaries = string[]
 export type RunId3 = string
 export type SessionId4 = string
+export type SubmitTool = ("submit_spec" | "submit_followup_spec" | "submit_code")
+export type TaskId = string
+export type Ts6 = string
+export type Type9 = "run.llm_waiting"
+export type RunId4 = string
+export type SessionId5 = string
+export type TaskId1 = string
+export type Ts7 = string
+export type Type10 = "run.llm_answered"
+export type AutoApproved = boolean
+export type Boundaries = string[]
+export type RunId5 = string
+export type SessionId6 = string
 /**
  * @maxItems 10
  */
@@ -89,35 +100,35 @@ export type Unchanged = string[]
 export type SummaryChanged = boolean
 export type SummaryNew = (string | null)
 export type SummaryOld = (string | null)
-export type Ts6 = string
-export type Type9 = "run.spec_proposed"
+export type Ts8 = string
+export type Type11 = "run.spec_proposed"
 export type Boundary = number
 export type Scenario1 = number
 export type TruthTable = number
 export type FromBase = number
-export type RunId4 = string
-export type SessionId5 = string
-export type Total = number
-export type Ts7 = string
-export type Type10 = "run.tests_generated"
-export type AttemptId = string
-export type Number = number
-export type RunId5 = string
-export type SessionId6 = string
-export type Ts8 = string
-export type Type11 = "attempt.started"
-export type AttemptId1 = string
-export type Code = string
 export type RunId6 = string
 export type SessionId7 = string
+export type Total = number
 export type Ts9 = string
-export type Type12 = "attempt.code"
-export type AttemptId2 = string
-export type Ok = boolean
+export type Type12 = "run.tests_generated"
+export type AttemptId = string
+export type Number = number
 export type RunId7 = string
 export type SessionId8 = string
 export type Ts10 = string
-export type Type13 = "attempt.safety"
+export type Type13 = "attempt.started"
+export type AttemptId1 = string
+export type Code = string
+export type RunId8 = string
+export type SessionId9 = string
+export type Ts11 = string
+export type Type14 = "attempt.code"
+export type AttemptId2 = string
+export type Ok = boolean
+export type RunId9 = string
+export type SessionId10 = string
+export type Ts12 = string
+export type Type15 = "attempt.safety"
 export type Line = number
 export type Message1 = string
 export type Rule1 = string
@@ -125,10 +136,10 @@ export type Violations = Violation[]
 export type AttemptId3 = string
 export type Log = string
 export type Ok1 = boolean
-export type RunId8 = string
-export type SessionId9 = string
-export type Ts11 = string
-export type Type14 = "attempt.compile"
+export type RunId10 = string
+export type SessionId11 = string
+export type Ts13 = string
+export type Type16 = "attempt.compile"
 export type AttemptId4 = string
 export type Passed = number
 export type Error = (string | null)
@@ -139,42 +150,42 @@ export type Failures = Failure[]
 export type Passed1 = boolean
 export type TestId = string
 export type Results = TestResult[]
-export type RunId9 = string
-export type SessionId10 = string
-export type Total1 = number
-export type Ts12 = string
-export type Type15 = "attempt.tests"
-export type Log1 = (string | null)
-export type Ok2 = boolean
-export type RunId10 = string
-export type SessionId11 = string
-export type Size = (number | null)
-export type Ts13 = string
-export type Type16 = "deploy.build"
-export type Message3 = (string | null)
-export type Ok3 = boolean
 export type RunId11 = string
 export type SessionId12 = string
+export type Total1 = number
 export type Ts14 = string
-export type Type17 = "deploy.flash"
+export type Type17 = "attempt.tests"
+export type Log1 = (string | null)
+export type Ok2 = boolean
+export type RunId12 = string
+export type SessionId13 = string
+export type Size = (number | null)
+export type Ts15 = string
+export type Type18 = "deploy.build"
+export type Message3 = (string | null)
+export type Ok3 = boolean
+export type RunId13 = string
+export type SessionId14 = string
+export type Ts16 = string
+export type Type19 = "deploy.flash"
 export type Details = (string | {
 [k: string]: unknown
 } | null)
 export type Kind = ("hello" | "self_check" | "onboard_test")
-export type RunId12 = string
-export type SessionId13 = string
+export type RunId14 = string
+export type SessionId15 = string
 export type Status1 = ("passed" | "failed" | "skipped_virtual")
-export type Ts15 = string
-export type Type18 = "verify.check"
+export type Ts17 = string
+export type Type20 = "verify.check"
 export type Code1 = string
 export type Message4 = string
-export type RunId13 = string
-export type SessionId14 = string
+export type RunId15 = string
+export type SessionId16 = string
 export type Status2 = string
 export type TestsPassed = (number | null)
 export type TestsTotal = (number | null)
-export type Ts16 = string
-export type Type19 = "run.finished"
+export type Ts18 = string
+export type Type21 = "run.finished"
 export type Id2 = string
 export type Number1 = number
 export type Busy = boolean
@@ -187,38 +198,38 @@ export type Port = (string | null)
 export type Proto1 = (number | null)
 export type Id3 = string
 export type Number2 = (number | null)
-export type SessionId15 = string
+export type SessionId17 = string
 export type SessionTitle = (string | null)
-export type Ts17 = string
-export type Type20 = "device.status"
+export type Ts19 = string
+export type Type22 = "device.status"
 export type Action = ("reflashed" | "reloaded" | "none" | "skipped")
 export type Reason1 = string
-export type Ts18 = string
-export type Type21 = "device.reconcile"
+export type Ts20 = string
+export type Type23 = "device.reconcile"
 export type Version = ({
 [k: string]: unknown
 } | null)
 export type D = string[]
 export type Mode1 = ("run" | "test" | "override")
 export type T = number
-export type Ts19 = string
-export type Type22 = "device.telemetry"
+export type Ts21 = string
+export type Type24 = "device.telemetry"
 export type Code2 = string
 export type Msg = string
-export type Ts20 = string
-export type Type23 = "device.error"
+export type Ts22 = string
+export type Type25 = "device.error"
 export type BenchmarkRunId = string
 export type Done = number
 export type ImplementationPass = boolean
 export type UnderstandingPass = boolean
 export type LastTaskId = (string | null)
 export type Total2 = number
-export type Ts21 = string
-export type Type24 = "benchmark.progress"
+export type Ts23 = string
+export type Type26 = "benchmark.progress"
 export type BenchmarkRunId1 = string
 export type Status3 = string
-export type Ts22 = string
-export type Type25 = "benchmark.finished"
+export type Ts24 = string
+export type Type27 = "benchmark.finished"
 
 export interface SubscribeMessage {
 session_id: SessionId
@@ -275,15 +286,30 @@ export interface Question {
 question: Question1
 reason: Reason
 }
+export interface RunLlmWaitingEvent {
+run_id: RunId3
+session_id: SessionId4
+submit_tool: SubmitTool
+task_id: TaskId
+ts: Ts6
+type: Type9
+}
+export interface RunLlmAnsweredEvent {
+run_id: RunId4
+session_id: SessionId5
+task_id: TaskId1
+ts: Ts7
+type: Type10
+}
 export interface RunSpecProposedEvent {
 auto_approved: AutoApproved
 boundaries: Boundaries
-run_id: RunId3
-session_id: SessionId4
+run_id: RunId5
+session_id: SessionId6
 spec: Spec
 spec_diff: (SpecDiff | null)
-ts: Ts6
-type: Type9
+ts: Ts8
+type: Type11
 }
 export interface Spec {
 rules?: Rules
@@ -356,11 +382,11 @@ unchanged?: Unchanged
 export interface RunTestsGeneratedEvent {
 by_origin: ByOrigin
 from_base: FromBase
-run_id: RunId4
-session_id: SessionId5
+run_id: RunId6
+session_id: SessionId7
 total: Total
-ts: Ts7
-type: Type10
+ts: Ts9
+type: Type12
 }
 export interface ByOrigin {
 boundary?: Boundary
@@ -370,26 +396,26 @@ truth_table?: TruthTable
 export interface AttemptStartedEvent {
 attempt_id: AttemptId
 number: Number
-run_id: RunId5
-session_id: SessionId6
-ts: Ts8
-type: Type11
-}
-export interface AttemptCodeEvent {
-attempt_id: AttemptId1
-code: Code
-run_id: RunId6
-session_id: SessionId7
-ts: Ts9
-type: Type12
-}
-export interface AttemptSafetyEvent {
-attempt_id: AttemptId2
-ok: Ok
 run_id: RunId7
 session_id: SessionId8
 ts: Ts10
 type: Type13
+}
+export interface AttemptCodeEvent {
+attempt_id: AttemptId1
+code: Code
+run_id: RunId8
+session_id: SessionId9
+ts: Ts11
+type: Type14
+}
+export interface AttemptSafetyEvent {
+attempt_id: AttemptId2
+ok: Ok
+run_id: RunId9
+session_id: SessionId10
+ts: Ts12
+type: Type15
 violations: Violations
 }
 export interface Violation {
@@ -401,20 +427,20 @@ export interface AttemptCompileEvent {
 attempt_id: AttemptId3
 log: Log
 ok: Ok1
-run_id: RunId8
-session_id: SessionId9
-ts: Ts11
-type: Type14
+run_id: RunId10
+session_id: SessionId11
+ts: Ts13
+type: Type16
 }
 export interface AttemptTestsEvent {
 attempt_id: AttemptId4
 passed: Passed
 results: Results
-run_id: RunId9
-session_id: SessionId10
+run_id: RunId11
+session_id: SessionId12
 total: Total1
-ts: Ts12
-type: Type15
+ts: Ts14
+type: Type17
 }
 export interface TestResult {
 error?: Error
@@ -431,38 +457,38 @@ step_index: StepIndex
 export interface DeployBuildEvent {
 log: Log1
 ok: Ok2
-run_id: RunId10
-session_id: SessionId11
+run_id: RunId12
+session_id: SessionId13
 size: Size
-ts: Ts13
-type: Type16
+ts: Ts15
+type: Type18
 }
 export interface DeployFlashEvent {
 message: Message3
 ok: Ok3
-run_id: RunId11
-session_id: SessionId12
-ts: Ts14
-type: Type17
+run_id: RunId13
+session_id: SessionId14
+ts: Ts16
+type: Type19
 }
 export interface VerifyCheckEvent {
 details: Details
 kind: Kind
-run_id: RunId12
-session_id: SessionId13
+run_id: RunId14
+session_id: SessionId15
 status: Status1
-ts: Ts15
-type: Type18
+ts: Ts17
+type: Type20
 }
 export interface RunFinishedEvent {
 failure: (Failure1 | null)
-run_id: RunId13
-session_id: SessionId14
+run_id: RunId15
+session_id: SessionId16
 status: Status2
 tests_passed: TestsPassed
 tests_total: TestsTotal
-ts: Ts16
-type: Type19
+ts: Ts18
+type: Type21
 version: (VersionRef | null)
 }
 export interface Failure1 {
@@ -475,8 +501,8 @@ number: Number1
 }
 export interface DeviceStatusEvent {
 status: DeviceStatus
-ts: Ts17
-type: Type20
+ts: Ts19
+type: Type22
 }
 /**
  * What the UI knows about the board: the `device.status` event and `GET /api/device`.
@@ -498,14 +524,14 @@ running_version?: (RunningVersion | null)
 export interface RunningVersion {
 id: Id3
 number: Number2
-session_id: SessionId15
+session_id: SessionId17
 session_title: SessionTitle
 }
 export interface DeviceReconcileEvent {
 action: Action
 reason: Reason1
-ts: Ts18
-type: Type21
+ts: Ts20
+type: Type23
 version: Version
 }
 export interface DeviceTelemetryEvent {
@@ -514,8 +540,8 @@ d: D
 mode: Mode1
 s: S
 t: T
-ts: Ts19
-type: Type22
+ts: Ts21
+type: Type24
 }
 export interface A {
 [k: string]: number
@@ -526,8 +552,8 @@ export interface S {
 export interface DeviceErrorEvent {
 code: Code2
 msg: Msg
-ts: Ts20
-type: Type23
+ts: Ts22
+type: Type25
 }
 export interface BenchmarkProgressEvent {
 benchmark_run_id: BenchmarkRunId
@@ -535,8 +561,8 @@ done: Done
 last_result: (LastResult | null)
 last_task_id: LastTaskId
 total: Total2
-ts: Ts21
-type: Type24
+ts: Ts23
+type: Type26
 }
 export interface LastResult {
 implementation_pass: ImplementationPass
@@ -546,8 +572,8 @@ export interface BenchmarkFinishedEvent {
 benchmark_run_id: BenchmarkRunId1
 status: Status3
 summary: Summary1
-ts: Ts22
-type: Type25
+ts: Ts24
+type: Type27
 }
 export interface Summary1 {
 [k: string]: unknown

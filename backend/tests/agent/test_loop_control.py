@@ -11,6 +11,7 @@ from firmloop.agent.coder import MISSING_BLOCK_FEEDBACK
 from firmloop.agent.phases import NO_BOARD_MESSAGE
 from firmloop.db import repo
 from firmloop.errors import AppError, ErrorCode
+from firmloop.events.models import RunLlmAnsweredEvent, RunLlmWaitingEvent
 from firmloop.hardware.registry import Registry
 from firmloop.llm.chat import ChatBridge, ChatProvider, ChatTask
 from firmloop.spec import models as m
@@ -70,6 +71,18 @@ async def test_chat_provider_answers_for_its_run(engine: AsyncEngine, registry: 
     done = await h.settle(run)
     assert done.status == "succeeded", (done.failure_code, done.failure_message)
     assert done.provider == "chat"
+    llm_events = [
+        (e.type, e.task_id, sid)
+        for e, sid in h.bus.events
+        if isinstance(e, RunLlmWaitingEvent | RunLlmAnsweredEvent)
+    ]
+    assert [(t, sid) for t, _, sid in llm_events] == [
+        ("run.llm_waiting", h.session_id),
+        ("run.llm_answered", h.session_id),
+        ("run.llm_waiting", h.session_id),
+        ("run.llm_answered", h.session_id),
+    ]
+    assert llm_events[0][1] == llm_events[1][1] != llm_events[2][1] == llm_events[3][1]
     async with engine.connect() as conn:
         calls = await conn.execute(
             text("SELECT provider, model FROM llm_calls WHERE run_id = :id ORDER BY id"),

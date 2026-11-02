@@ -78,6 +78,24 @@ class RunQuestionEvent(_Event):
     question: Question
 
 
+SubmitTool = Literal["submit_spec", "submit_followup_spec", "submit_code"]
+
+
+class RunLlmWaitingEvent(_Event):
+    type: Literal["run.llm_waiting"] = "run.llm_waiting"
+    run_id: str
+    session_id: str
+    task_id: str
+    submit_tool: SubmitTool
+
+
+class RunLlmAnsweredEvent(_Event):
+    type: Literal["run.llm_answered"] = "run.llm_answered"
+    run_id: str
+    session_id: str
+    task_id: str
+
+
 class RunSpecProposedEvent(_Event):
     type: Literal["run.spec_proposed"] = "run.spec_proposed"
     run_id: str
@@ -239,6 +257,8 @@ ServerEvent = Annotated[
     | RunStatusEvent
     | RunLogEvent
     | RunQuestionEvent
+    | RunLlmWaitingEvent
+    | RunLlmAnsweredEvent
     | RunSpecProposedEvent
     | RunTestsGeneratedEvent
     | AttemptStartedEvent

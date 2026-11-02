@@ -4,15 +4,15 @@ import asyncio
 import re
 import time
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any
 
 from ulid import ULID
 
 from firmloop.errors import AppError, ErrorCode
+from firmloop.events.bus import EventBus
+from firmloop.events.models import RunLlmAnsweredEvent, RunLlmWaitingEvent, SubmitTool
 from firmloop.llm.base import LLMTimeout, LLMUnavailable, LLMUsage, Message
 from firmloop.spec.wire import WireFollowupUnderstandResult
-
-SubmitTool = Literal["submit_spec", "submit_followup_spec", "submit_code"]
 
 # Model name logged when the chat app does not report one.
 UNREPORTED_MODEL = "chat"
@@ -68,7 +68,8 @@ class ChatBridge:
     Holds at most one pending task, as only one run works at a time.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, bus: EventBus | None = None) -> None:
+        self._bus = bus
         self._task: ChatTask | None = None
 
     def pending(self, run_id: str | None = None) -> ChatTask | None:
@@ -83,6 +84,16 @@ class ChatBridge:
         if self._task is not None:
             raise LLMUnavailable("another chat task is still pending")
         self._task = task
+        if self._bus is not None:
+            self._bus.publish(
+                RunLlmWaitingEvent(
+                    run_id=task.run_id,
+                    session_id=task.session_id,
+                    task_id=task.task_id,
+                    submit_tool=task.submit_tool,
+                ),
+                task.session_id,
+            )
         try:
             async with asyncio.timeout(timeout_s):
                 return await task.answer
@@ -109,6 +120,13 @@ class ChatBridge:
             )
         task.answer.set_result(ChatAnswer(text=text, model=model or None))
         self._task = None
+        if self._bus is not None:
+            self._bus.publish(
+                RunLlmAnsweredEvent(
+                    run_id=task.run_id, session_id=task.session_id, task_id=task.task_id
+                ),
+                task.session_id,
+            )
 
 
 class ChatProvider:

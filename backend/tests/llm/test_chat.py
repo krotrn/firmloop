@@ -3,10 +3,12 @@ import asyncio
 import pytest
 
 from firmloop.errors import AppError, ErrorCode
+from firmloop.events.models import RunLlmAnsweredEvent, RunLlmWaitingEvent
 from firmloop.llm.base import LLMTimeout, LLMUnavailable, Message
 from firmloop.llm.chat import ChatBridge, ChatProvider, ChatTask, submit_tool_for
 from firmloop.llm.structured import inline_refs
 from firmloop.spec.wire import WireFollowupUnderstandResult, WireUnderstandResult
+from support.orchestration import RecordingBus
 
 MSGS = [Message(role="system", content="sys"), Message(role="user", content="make a fan")]
 SPEC_SCHEMA = inline_refs(WireUnderstandResult.model_json_schema())
@@ -177,3 +179,48 @@ async def test_pending_filters_by_run() -> None:
 async def test_unbound_provider_is_unavailable() -> None:
     with pytest.raises(LLMUnavailable, match="run"):
         await ChatProvider(timeout_s=1).complete(MSGS, temperature=0, max_tokens=10)
+
+
+async def test_events_report_the_wait_and_the_answer() -> None:
+    bus = RecordingBus()
+    bridge = ChatBridge(bus)
+    call = asyncio.create_task(bound(bridge).complete(MSGS, temperature=0, max_tokens=10))
+    task = await next_task(bridge)
+    waiting, waiting_session = bus.events[0]
+    assert isinstance(waiting, RunLlmWaitingEvent)
+    assert (waiting.run_id, waiting.session_id, waiting.task_id) == ("r1", "s1", task.task_id)
+    assert waiting.submit_tool == "submit_code"
+    assert waiting_session == "s1"
+    bridge.submit(task.task_id, "submit_code", "x", model=None)
+    await call
+    answered, session_id = bus.events[1]
+    assert isinstance(answered, RunLlmAnsweredEvent)
+    assert (answered.run_id, answered.session_id, answered.task_id) == ("r1", "s1", task.task_id)
+    assert session_id == "s1"
+    assert len(bus.events) == 2
+
+
+async def test_no_event_after_a_timeout_or_cancel() -> None:
+    bus = RecordingBus()
+    bridge = ChatBridge(bus)
+    with pytest.raises(LLMTimeout):
+        await bound(bridge, timeout_s=0.01).complete(MSGS, temperature=0, max_tokens=10)
+    call = asyncio.create_task(bound(bridge).complete(MSGS, temperature=0, max_tokens=10))
+    await next_task(bridge)
+    call.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await call
+    assert bus.types() == ["run.llm_waiting", "run.llm_waiting"]
+
+
+async def test_wrong_tool_submit_publishes_nothing() -> None:
+    bus = RecordingBus()
+    bridge = ChatBridge(bus)
+    call = asyncio.create_task(bound(bridge).complete(MSGS, temperature=0, max_tokens=10))
+    task = await next_task(bridge)
+    with pytest.raises(AppError):
+        bridge.submit(task.task_id, "submit_spec", "x", model=None)
+    assert bus.types() == ["run.llm_waiting"]
+    call.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await call

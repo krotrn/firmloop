@@ -88,7 +88,7 @@ class RunOrchestrator:
         self._virtual_target = virtual_target
         self._board = board or Board(engine)
         self.lock = WorkLock(engine)
-        self.chat = chat or ChatBridge()
+        self.chat = chat or ChatBridge(bus)
         self._phases = Phases(
             Deps(
                 engine=engine,

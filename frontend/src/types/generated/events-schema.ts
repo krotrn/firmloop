@@ -1244,6 +1244,90 @@ export const eventsSchema = {
       "title": "RunFinishedEvent",
       "type": "object"
     },
+    "RunLlmAnsweredEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        },
+        "ts": {
+          "format": "date-time",
+          "title": "Ts",
+          "type": "string"
+        },
+        "type": {
+          "const": "run.llm_answered",
+          "default": "run.llm_answered",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ts",
+        "type",
+        "run_id",
+        "session_id",
+        "task_id"
+      ],
+      "title": "RunLlmAnsweredEvent",
+      "type": "object"
+    },
+    "RunLlmWaitingEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "submit_tool": {
+          "enum": [
+            "submit_spec",
+            "submit_followup_spec",
+            "submit_code"
+          ],
+          "title": "Submit Tool",
+          "type": "string"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        },
+        "ts": {
+          "format": "date-time",
+          "title": "Ts",
+          "type": "string"
+        },
+        "type": {
+          "const": "run.llm_waiting",
+          "default": "run.llm_waiting",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ts",
+        "type",
+        "run_id",
+        "session_id",
+        "task_id",
+        "submit_tool"
+      ],
+      "title": "RunLlmWaitingEvent",
+      "type": "object"
+    },
     "RunLogEvent": {
       "additionalProperties": false,
       "properties": {
@@ -1596,6 +1680,8 @@ export const eventsSchema = {
           "pong": "#/$defs/PongEvent",
           "run.created": "#/$defs/RunCreatedEvent",
           "run.finished": "#/$defs/RunFinishedEvent",
+          "run.llm_answered": "#/$defs/RunLlmAnsweredEvent",
+          "run.llm_waiting": "#/$defs/RunLlmWaitingEvent",
           "run.log": "#/$defs/RunLogEvent",
           "run.question": "#/$defs/RunQuestionEvent",
           "run.spec_proposed": "#/$defs/RunSpecProposedEvent",
@@ -1623,6 +1709,12 @@ export const eventsSchema = {
         },
         {
           "$ref": "#/$defs/RunQuestionEvent"
+        },
+        {
+          "$ref": "#/$defs/RunLlmWaitingEvent"
+        },
+        {
+          "$ref": "#/$defs/RunLlmAnsweredEvent"
         },
         {
           "$ref": "#/$defs/RunSpecProposedEvent"
