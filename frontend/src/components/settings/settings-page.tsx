@@ -3,6 +3,7 @@
 import { Loader2Icon, TriangleAlertIcon } from "lucide-react";
 import { useId, useState, type ReactNode } from "react";
 
+import { ChatConnect } from "@/components/settings/chat-connect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -22,6 +23,10 @@ type Provider = Settings["llm_provider"];
 type DeviceMode = Settings["device_mode"];
 
 const NO_FALLBACK = "none";
+const PROVIDER_LABELS: Partial<Record<Provider, string>> = {
+  chat: "Chat app (MCP)",
+};
+const providerLabel = (p: Provider): string => PROVIDER_LABELS[p] ?? p;
 const MIN_ATTEMPTS = 1;
 const MAX_ATTEMPTS = 8;
 
@@ -158,13 +163,16 @@ function SettingsForm({ settings }: { settings: Settings }) {
     new Set<Provider>([...settings.available_providers, settings.llm_provider])
   );
   const fallbackChoices = providers.filter((p) => p !== provider);
-  const providerItems = providers.map((p) => ({ value: p, label: p }));
+  const providerItems = providers.map((p) => ({
+    value: p,
+    label: providerLabel(p),
+  }));
   const fallbackItems = [
     { value: NO_FALLBACK, label: "None" },
     ...(fallback && !fallbackChoices.includes(fallback)
-      ? [{ value: fallback, label: fallback }]
+      ? [{ value: fallback, label: providerLabel(fallback) }]
       : []),
-    ...fallbackChoices.map((p) => ({ value: p, label: p })),
+    ...fallbackChoices.map((p) => ({ value: p, label: providerLabel(p) })),
   ];
   const modeItems = [
     { value: "virtual", label: "Virtual" },
@@ -257,6 +265,7 @@ function SettingsForm({ settings }: { settings: Settings }) {
             </SelectContent>
           </Select>
         </Row>
+        {provider === "chat" && <ChatConnect />}
         <Row label="Model" htmlFor={ids.model}>
           <Input
             id={ids.model}

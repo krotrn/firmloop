@@ -105,6 +105,36 @@ describe("RunPanel Run tab", () => {
   });
 });
 
+describe("RunPanel chat step", () => {
+  it("shows Waiting for chat from the events and drops it when the run ends", () => {
+    const { rerender } = render(
+      <RunPanel run={run("r1")} sessionId="s1" deviceMode="real" />,
+      { wrapper: Wrapper }
+    );
+    act(() => FakeWebSocket.last.open());
+    expect(screen.queryByText("Waiting for chat")).not.toBeInTheDocument();
+    act(() =>
+      FakeWebSocket.last.receive({
+        type: "run.llm_waiting",
+        ts: "2026-01-01T00:00:00Z",
+        run_id: "r1",
+        session_id: "s1",
+        task_id: "t1",
+        submit_tool: "submit_spec",
+      })
+    );
+    expect(screen.getByText("Waiting for chat")).toBeInTheDocument();
+    rerender(
+      <RunPanel
+        run={{ ...run("r1"), status: "cancelled" }}
+        sessionId="s1"
+        deviceMode="real"
+      />
+    );
+    expect(screen.queryByText("Waiting for chat")).not.toBeInTheDocument();
+  });
+});
+
 describe("RunPanel Code and Tests tabs", () => {
   beforeEach(() => {
     mounts.code = 0;

@@ -77,6 +77,21 @@ describe("SettingsPage", () => {
     expect(options.map((o) => o.textContent)).toEqual(["gemini", "fake"]);
   });
 
+  it("labels the chat provider and shows the connect command only when it is selected", async () => {
+    vi.spyOn(settingsService, "getSettings").mockResolvedValue({
+      ...settings,
+      available_providers: ["gemini", "chat"],
+    });
+    renderPage();
+    const trigger = await screen.findByRole("combobox", { name: "Provider" });
+    expect(screen.queryByText(/claude mcp add/)).not.toBeInTheDocument();
+    await userEvent.click(trigger);
+    await userEvent.click(
+      await screen.findByRole("option", { name: "Chat app (MCP)" })
+    );
+    expect(screen.getByText(/claude mcp add/)).toBeVisible();
+  });
+
   it("sends only the changed keys", async () => {
     const update = vi
       .spyOn(settingsService, "updateSettings")

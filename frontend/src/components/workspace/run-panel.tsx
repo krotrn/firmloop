@@ -6,6 +6,7 @@ import { CodeTab } from "@/components/code/code-tab";
 import { DevicePanel } from "@/components/device/device-panel";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { AttemptsList } from "@/components/run/attempts-list";
+import { ChatWaitStep } from "@/components/run/chat-wait-step";
 import { RunLog } from "@/components/run/run-log";
 import { RunTimeline } from "@/components/run/run-timeline";
 import { RunStatusBadge } from "@/components/runs/run-status-badge";
@@ -15,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VersionsTab } from "@/components/versions/versions-tab";
 import { runLabel } from "@/components/workspace/run-history";
 import { useCancelRun } from "@/hooks/queries/use-runs";
+import { useChatWait } from "@/hooks/use-chat-wait";
 import { useRunLog } from "@/hooks/use-run-log";
 import { isTerminal } from "@/lib/run-status";
 import { relativeTime } from "@/lib/time";
@@ -92,6 +94,7 @@ export function RunPanel({
   deviceMode: DeviceMode | null;
 }) {
   const logLines = useRunLog(sessionId, run?.id ?? null);
+  const chatWait = useChatWait(sessionId, run?.id ?? null);
   return (
     <Tabs defaultValue="run" className="min-w-0">
       <TabsList className="w-full justify-start overflow-x-auto overflow-y-hidden">
@@ -106,6 +109,7 @@ export function RunPanel({
           <div className="flex flex-col gap-8">
             <RunSummary run={run} sessionId={sessionId} />
             <RunTimeline run={run} deviceMode={deviceMode} />
+            <ChatWaitStep state={chatWait} runStatus={run.status} />
             <AttemptsList run={run} />
             <RunLog key={run.id} lines={logLines} />
           </div>
