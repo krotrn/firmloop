@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 
-from firmloop.api.deps import EngineDep, OrchestratorDep, RegistryDep
+from firmloop.api.deps import ChatDep, EngineDep, OrchestratorDep, RegistryDep
 from firmloop.api.errors import ERROR_RESPONSES
 from firmloop.api.views import (
     DEFAULT_LIMIT,
@@ -78,6 +78,7 @@ def _not_found(what: str, ident: str) -> AppError:
 async def list_runs(
     engine: EngineDep,
     registry: RegistryDep,
+    chat: ChatDep,
     session_id: str,
     limit: Annotated[int, Query(ge=1, le=MAX_LIMIT)] = DEFAULT_LIMIT,
     cursor: str | None = None,
@@ -87,7 +88,7 @@ async def list_runs(
     offset = parse_cursor(cursor)
     rows = await repo.list_runs(engine, session_id, limit=limit + 1, offset=offset)
     return RunList(
-        items=await runs_out(engine, registry, rows[:limit]),
+        items=await runs_out(engine, registry, chat, rows[:limit]),
         next_cursor=next_cursor(offset, limit, len(rows)),
     )
 
@@ -106,15 +107,15 @@ async def create_run(
         input_mode=body.input_mode,
         cancel_waiting=body.cancel_waiting,
     )
-    return await run_out(engine, registry, run)
+    return await run_out(engine, registry, orchestrator.chat, run)
 
 
 @router.get("/runs/{run_id}")
-async def get_run(engine: EngineDep, registry: RegistryDep, run_id: str) -> RunOut:
+async def get_run(engine: EngineDep, registry: RegistryDep, chat: ChatDep, run_id: str) -> RunOut:
     run = await repo.get_run(engine, run_id)
     if run is None:
         raise _not_found("Run", run_id)
-    return await run_out(engine, registry, run)
+    return await run_out(engine, registry, chat, run)
 
 
 @router.post("/runs/{run_id}/answer", status_code=status.HTTP_202_ACCEPTED)
@@ -125,7 +126,9 @@ async def answer_run(
     run_id: str,
     body: AnswerBody,
 ) -> RunOut:
-    return await run_out(engine, registry, await orchestrator.answer(run_id, body.answer))
+    return await run_out(
+        engine, registry, orchestrator.chat, await orchestrator.answer(run_id, body.answer)
+    )
 
 
 @router.post("/runs/{run_id}/confirm", status_code=status.HTTP_202_ACCEPTED)
@@ -136,7 +139,9 @@ async def confirm_run(
     run_id: str,
     body: ConfirmBody,
 ) -> RunOut:
-    return await run_out(engine, registry, await orchestrator.confirm(run_id, body.spec))
+    return await run_out(
+        engine, registry, orchestrator.chat, await orchestrator.confirm(run_id, body.spec)
+    )
 
 
 @router.post("/runs/{run_id}/reject", status_code=status.HTTP_202_ACCEPTED)
@@ -147,14 +152,16 @@ async def reject_run(
     run_id: str,
     body: RejectBody,
 ) -> RunOut:
-    return await run_out(engine, registry, await orchestrator.reject(run_id, body.feedback))
+    return await run_out(
+        engine, registry, orchestrator.chat, await orchestrator.reject(run_id, body.feedback)
+    )
 
 
 @router.post("/runs/{run_id}/cancel")
 async def cancel_run(
     engine: EngineDep, registry: RegistryDep, orchestrator: OrchestratorDep, run_id: str
 ) -> RunOut:
-    return await run_out(engine, registry, await orchestrator.cancel(run_id))
+    return await run_out(engine, registry, orchestrator.chat, await orchestrator.cancel(run_id))
 
 
 @router.post("/runs/{run_id}/manual", status_code=status.HTTP_202_ACCEPTED)
@@ -166,7 +173,7 @@ async def manual_run(
     body: ManualBody,
 ) -> RunOut:
     run = await orchestrator.manual(run_id, body.code, cancel_waiting=body.cancel_waiting)
-    return await run_out(engine, registry, run)
+    return await run_out(engine, registry, orchestrator.chat, run)
 
 
 @router.post("/runs/{run_id}/retry", status_code=status.HTTP_202_ACCEPTED)
@@ -178,7 +185,7 @@ async def retry_run(
     body: RetryBody,
 ) -> RunOut:
     run = await orchestrator.retry(run_id, body.spec, cancel_waiting=body.cancel_waiting)
-    return await run_out(engine, registry, run)
+    return await run_out(engine, registry, orchestrator.chat, run)
 
 
 @router.get("/runs/{run_id}/attempts")

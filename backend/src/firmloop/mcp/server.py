@@ -270,7 +270,7 @@ class _Tools:
         run = await self._orch.start_request(
             session_id, request, input_mode="text", cancel_waiting=cancel_waiting
         )
-        return await run_out(self._engine, self._registry, run)
+        return await run_out(self._engine, self._registry, self._orch.chat, run)
 
     async def get_run(self, run_id: str) -> RunOut:
         return await self._run(run_id)
@@ -279,21 +279,21 @@ class _Tools:
         self, run_id: str, answer: Annotated[str, Field(min_length=1, max_length=TEXT_MAX)]
     ) -> RunOut:
         run = await self._orch.answer(run_id, answer)
-        return await run_out(self._engine, self._registry, run)
+        return await run_out(self._engine, self._registry, self._orch.chat, run)
 
     async def confirm(self, run_id: str) -> RunOut:
         run = await self._orch.confirm(run_id, None)
-        return await run_out(self._engine, self._registry, run)
+        return await run_out(self._engine, self._registry, self._orch.chat, run)
 
     async def reject(
         self, run_id: str, feedback: Annotated[str, Field(min_length=1, max_length=TEXT_MAX)]
     ) -> RunOut:
         run = await self._orch.reject(run_id, feedback)
-        return await run_out(self._engine, self._registry, run)
+        return await run_out(self._engine, self._registry, self._orch.chat, run)
 
     async def cancel(self, run_id: str) -> RunOut:
         run = await self._orch.cancel(run_id)
-        return await run_out(self._engine, self._registry, run)
+        return await run_out(self._engine, self._registry, self._orch.chat, run)
 
     async def submit_spec(
         self,
@@ -346,7 +346,7 @@ class _Tools:
 
     async def rollback(self, version_id: str, cancel_waiting: bool = False) -> RunOut:
         run = await self._orch.rollback(version_id, cancel_waiting=cancel_waiting)
-        return await run_out(self._engine, self._registry, run)
+        return await run_out(self._engine, self._registry, self._orch.chat, run)
 
     async def device_status(
         self, wait_ms: Annotated[int, Field(ge=0, le=DEVICE_WAIT_MAX_MS)] = 0
@@ -447,7 +447,7 @@ class _Tools:
         run = await repo.get_run(self._engine, run_id)
         if run is None:
             raise AppError(ErrorCode.NOT_FOUND, "Run not found.", {"id": run_id})
-        return await run_out(self._engine, self._registry, run)
+        return await run_out(self._engine, self._registry, self._orch.chat, run)
 
     def _for_chat(self, out: RunOut) -> dict[str, Any] | None:
         """What the chat must handle now, or None while the run works on its own."""

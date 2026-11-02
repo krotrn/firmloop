@@ -129,6 +129,8 @@ async def test_a_run_from_request_to_a_version(engine: AsyncEngine, registry: Re
         assert task["kind"] == "llm_task"
         assert task["submit_tool"] == "submit_spec"
         assert {m["role"] for m in task["messages"]} >= {"system", "user"}
+        shown = await _ok(session, "get_run", {"run_id": run_id})
+        assert shown["chat_task"] == {"task_id": task["task_id"], "submit_tool": "submit_spec"}
         accepted = await _ok(
             session,
             "submit_spec",

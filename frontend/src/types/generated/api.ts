@@ -497,6 +497,19 @@ export interface components {
             /** Unit */
             unit: string | null;
         };
+        /**
+         * ChatTaskRef
+         * @description The LLM step a run is waiting on the chat app to answer.
+         */
+        ChatTaskRef: {
+            /**
+             * Submit Tool
+             * @enum {string}
+             */
+            submit_tool: "submit_spec" | "submit_followup_spec" | "submit_code";
+            /** Task Id */
+            task_id: string;
+        };
         /** CommandOut */
         CommandOut: {
             /**
@@ -851,6 +864,7 @@ export interface components {
             best_attempt_id: string | null;
             /** Boundaries */
             boundaries: string[];
+            chat_task: components["schemas"]["ChatTaskRef"] | null;
             confirmed_spec: components["schemas"]["Spec"] | null;
             failure: components["schemas"]["RunFailure"] | null;
             /** Finished At */
@@ -3580,6 +3594,7 @@ type ReadonlyArray<T> = [
 ] ? Readonly<Exclude<T, undefined>> : Readonly<Exclude<T, undefined>[]>;
 export const pathsApiSessionsSession_idVersionsGetParametersQueryStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/sessions/{session_id}/versions"]["get"]["parameters"]["query"]["status"]> = ["candidate", "promoted", "rejected"];
 export const channelOutKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ChannelOut"]["kind"]> = ["sensor", "actuator", "display"];
+export const chatTaskRefSubmit_toolValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ChatTaskRef"]["submit_tool"]> = ["submit_spec", "submit_followup_spec", "submit_code"];
 export const componentOutKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ComponentOut"]["kind"]> = ["sensor", "actuator", "display"];
 export const conditionOpValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Condition"]["op"]> = ["gt", "gte", "lt", "lte", "eq"];
 export const createRunBodyInput_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CreateRunBody"]["input_mode"]> = ["text", "voice"];

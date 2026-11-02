@@ -176,4 +176,4 @@ async def rollback(
     run = await orchestrator.rollback(
         version_id, cancel_waiting=body.cancel_waiting if body is not None else False
     )
-    return await run_out(engine, registry, run)
+    return await run_out(engine, registry, orchestrator.chat, run)

@@ -391,6 +391,31 @@
         "title": "ChannelOut",
         "type": "object"
       },
+      "ChatTaskRef": {
+        "additionalProperties": false,
+        "description": "The LLM step a run is waiting on the chat app to answer.",
+        "properties": {
+          "submit_tool": {
+            "enum": [
+              "submit_spec",
+              "submit_followup_spec",
+              "submit_code"
+            ],
+            "title": "Submit Tool",
+            "type": "string"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "submit_tool"
+        ],
+        "title": "ChatTaskRef",
+        "type": "object"
+      },
       "CommandOut": {
         "additionalProperties": false,
         "properties": {
@@ -1347,6 +1372,16 @@
             "title": "Boundaries",
             "type": "array"
           },
+          "chat_task": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChatTaskRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "confirmed_spec": {
             "anyOf": [
               {
@@ -1521,7 +1556,8 @@
           "provider",
           "model",
           "started_at",
-          "finished_at"
+          "finished_at",
+          "chat_task"
         ],
         "title": "RunOut",
         "type": "object"

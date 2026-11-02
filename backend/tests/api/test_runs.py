@@ -5,6 +5,7 @@ from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from firmloop.hardware.registry import Registry
+from firmloop.llm.chat import ChatTask
 from support.orchestration import (
     GOOD_CODE,
     QUESTION_REPLY,
@@ -591,3 +592,50 @@ async def test_two_simultaneous_starts_give_one_run_and_one_run_active(
     assert sorted([first.status_code, second.status_code]) == [202, 409]
     loser = second if winner is first else first
     assert loser.json()["error"]["code"] == "RUN_ACTIVE"
+
+
+# --- pending chat task -----
+
+
+async def _park_chat_task(api: Api, run_id: str, session_id: str) -> tuple[ChatTask, Any]:
+    task = ChatTask(
+        run_id=run_id,
+        session_id=session_id,
+        messages=[],
+        submit_tool="submit_followup_spec",
+        json_schema=None,
+    )
+    waiting = asyncio.create_task(api.orch.chat.ask(task, timeout_s=5))
+    await asyncio.sleep(0)
+    assert api.orch.chat.pending(run_id) is task
+    return task, waiting
+
+
+async def test_run_carries_the_pending_chat_task(engine: AsyncEngine, registry: Registry) -> None:
+    async with api_app(engine, registry) as api:
+        session_id = await api.new_session()
+        api.queue(spec_reply())
+        run = await api.request(session_id)
+        before = (await api.client.get(f"/api/runs/{run['id']}")).json()
+        task, waiting = await _park_chat_task(api, run["id"], session_id)
+        shown = (await api.client.get(f"/api/runs/{run['id']}")).json()
+        listed = (await api.client.get(f"/api/sessions/{session_id}/runs")).json()["items"]
+        waiting.cancel()
+
+    assert before["chat_task"] is None
+    assert shown["chat_task"] == {"task_id": task.task_id, "submit_tool": "submit_followup_spec"}
+    assert listed[0]["chat_task"] == shown["chat_task"]
+
+
+async def test_run_hides_the_chat_task_of_another_run(
+    engine: AsyncEngine, registry: Registry
+) -> None:
+    async with api_app(engine, registry) as api:
+        session_id = await api.new_session()
+        api.queue(spec_reply())
+        run = await api.request(session_id)
+        _, waiting = await _park_chat_task(api, "some-other-run", session_id)
+        shown = (await api.client.get(f"/api/runs/{run['id']}")).json()
+        waiting.cancel()
+
+    assert shown["chat_task"] is None

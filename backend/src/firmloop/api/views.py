@@ -11,7 +11,9 @@ from firmloop.db import repo
 from firmloop.db.models import Attempt, Run, Version
 from firmloop.db.models import Session as SessionRow
 from firmloop.errors import AppError, ErrorCode
+from firmloop.events.models import SubmitTool
 from firmloop.hardware.registry import Registry
+from firmloop.llm.chat import ChatBridge
 from firmloop.records import TestResult, Violation
 from firmloop.spec.describe import describe_boundaries
 from firmloop.spec.diff import SpecDiff
@@ -104,6 +106,15 @@ class TestCaseList(BaseModel):
     items: list[TestCase]
 
 
+class ChatTaskRef(BaseModel):
+    """The LLM step a run is waiting on the chat app to answer."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    task_id: str
+    submit_tool: SubmitTool
+
+
 class RunOut(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -130,6 +141,7 @@ class RunOut(BaseModel):
     model: str | None
     started_at: str
     finished_at: str | None
+    chat_task: ChatTaskRef | None
 
 
 class RunList(BaseModel):
@@ -242,8 +254,13 @@ def _failure(run: Run) -> RunFailure | None:
 
 
 def _run_out(
-    run: Run, attempts: Sequence[Attempt], versions: dict[str, Version], registry: Registry
+    run: Run,
+    attempts: Sequence[Attempt],
+    versions: dict[str, Version],
+    registry: Registry,
+    chat: ChatBridge,
 ) -> RunOut:
+    task = chat.pending(run.id)
     base = versions.get(run.base_version_id) if run.base_version_id else None
     result = versions.get(run.result_version_id) if run.result_version_id else None
     proposed = repo.run_spec(run.proposed_spec_json)
@@ -277,17 +294,22 @@ def _run_out(
         model=run.model,
         started_at=run.started_at,
         finished_at=run.finished_at,
+        chat_task=None
+        if task is None
+        else ChatTaskRef(task_id=task.task_id, submit_tool=task.submit_tool),
     )
 
 
-async def runs_out(engine: AsyncEngine, registry: Registry, runs: Sequence[Run]) -> list[RunOut]:
+async def runs_out(
+    engine: AsyncEngine, registry: Registry, chat: ChatBridge, runs: Sequence[Run]
+) -> list[RunOut]:
     """Response bodies for `runs`, reading their attempts and versions in one query each."""
     attempts = await repo.get_attempts_for_runs(engine, [r.id for r in runs])
     version_ids = {v for r in runs for v in (r.base_version_id, r.result_version_id) if v}
     versions = await repo.get_versions(engine, version_ids)
-    return [_run_out(r, attempts[r.id], versions, registry) for r in runs]
+    return [_run_out(r, attempts[r.id], versions, registry, chat) for r in runs]
 
 
-async def run_out(engine: AsyncEngine, registry: Registry, run: Run) -> RunOut:
-    (out,) = await runs_out(engine, registry, [run])
+async def run_out(engine: AsyncEngine, registry: Registry, chat: ChatBridge, run: Run) -> RunOut:
+    (out,) = await runs_out(engine, registry, chat, [run])
     return out
