@@ -1,9 +1,10 @@
 import asyncio
-from collections.abc import AsyncGenerator, Callable, Sequence
+from collections.abc import AsyncGenerator, Callable
 from contextlib import AbstractAsyncContextManager, AsyncExitStack, asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from firmloop.agent.loop import RunOrchestrator
 from firmloop.agent.phases import lib_version_from_header
@@ -21,7 +22,7 @@ from firmloop.db.migrate import upgrade_to_head
 from firmloop.events.bus import EventBus
 from firmloop.events.models import DeviceStatusEvent
 from firmloop.hardware.registry import Registry
-from firmloop.mcp.server import DEFAULT_ALLOWED_HOSTS, mount_mcp
+from firmloop.mcp.server import mount_mcp
 from firmloop.targets.telemetry_pump import TelemetryPump
 from firmloop.targets.virtual import VirtualTarget
 
@@ -31,7 +32,6 @@ def assemble_app(
     event_bus: EventBus,
     *,
     lifespan: Callable[[FastAPI], AbstractAsyncContextManager[None]] | None = None,
-    mcp_allowed_hosts: Sequence[str] = DEFAULT_ALLOWED_HOSTS,
 ) -> FastAPI:
     """The FastAPI app with its middleware, error handlers and routers, but no state: the
     lifespan (or a test) fills `app.state`."""
@@ -43,11 +43,13 @@ def assemble_app(
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # Outermost: a request for a foreign Host never reaches CORS or a route (DNS rebinding).
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
     app.state.event_bus = event_bus
     app.include_router(build_ws_router(event_bus, settings.frontend_origins))
     for module in (meta, sessions, runs, versions, device, settings_api):
         app.include_router(module.router)
-    mount_mcp(app, mcp_allowed_hosts)
+    mount_mcp(app, settings.allowed_hosts)
     return app
 
 

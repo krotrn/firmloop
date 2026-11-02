@@ -89,6 +89,28 @@ class Settings(BaseSettings):
             return [item.strip() for item in value.split(",") if item.strip()]
         return value
 
+    # Host names (no ports) the REST API, /ws and /mcp answer to; other Host headers are refused.
+    allowed_hosts: Annotated[list[str], NoDecode] = ["127.0.0.1", "localhost"]
+
+    @field_validator("allowed_hosts", mode="before")
+    @classmethod
+    def _split_hosts(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return value
+
+    @field_validator("allowed_hosts")
+    @classmethod
+    def _hosts_are_plain_names(cls, value: list[str]) -> list[str]:
+        if not value:
+            raise ValueError("allowed_hosts must not be empty")
+        for host in value:
+            if "*" in host:
+                raise ValueError("allowed_hosts must not contain wildcards")
+            if ":" in host and not host.startswith("["):
+                raise ValueError("allowed_hosts holds host names without ports")
+        return value
+
     @field_validator(
         "llm_fallback_provider",
         "gemini_api_key",

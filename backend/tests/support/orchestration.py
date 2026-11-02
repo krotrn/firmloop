@@ -332,6 +332,7 @@ def env(**overrides: Any) -> Settings:
         "max_attempts": 3,
         "auto_approve": False,
         "run_timeout_s": 60.0,
+        "allowed_hosts": ["127.0.0.1", "localhost", "test", "testserver"],
     }
     values.update(overrides)
     return Settings(_env_file=None, **values)  # pyright: ignore[reportCallIssue]

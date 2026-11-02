@@ -436,14 +436,16 @@ async def test_http_localhost_host_is_allowed(engine: AsyncEngine, registry: Reg
     assert response.status_code == 200
 
 
-@pytest.mark.parametrize("host", ["evil.example", "127.0.0.1:9999", "127.0.0.1"])
+@pytest.mark.parametrize(
+    "host", ["evil.example", "evil.example:8000", "127.0.0.1.evil.example:8000"]
+)
 async def test_http_foreign_host_is_refused(
     engine: AsyncEngine, registry: Registry, host: str
 ) -> None:
     app, _ = await _app(engine, registry)
     async with _http(app, host) as client:
         response = await client.post("/mcp", json=_INITIALIZE, headers=_HEADERS)
-    assert response.status_code == 421
+    assert response.status_code == 400
 
 
 @pytest.mark.parametrize("origin", ["http://evil.example", "http://127.0.0.1:8000", "null"])
@@ -458,14 +460,28 @@ async def test_http_any_origin_is_refused(
     assert response.status_code == 403
 
 
-async def test_http_extra_allowed_host_is_a_parameter(
+@pytest.mark.parametrize("host", ["localhost:9999", "127.0.0.1:3456", "localhost", "127.0.0.1"])
+async def test_http_allowed_host_is_accepted_on_any_port(
+    engine: AsyncEngine, registry: Registry, host: str
+) -> None:
+    app, _ = await _app(engine, registry)
+    async with _http(app, host) as client:
+        response = await client.post("/mcp", json=_INITIALIZE, headers=_HEADERS)
+    assert response.status_code == 200
+
+
+async def test_http_extra_allowed_host_comes_from_the_settings(
     engine: AsyncEngine, registry: Registry
 ) -> None:
     app, _ = await _app(engine, registry)
-    other = assemble_app(env(), app.state.event_bus, mcp_allowed_hosts=["test"])
-    async with _http(other, "test") as client:
+    other = assemble_app(env(allowed_hosts=["backend"]), app.state.event_bus)
+    async with _http(other, "backend:8000") as client:
         response = await client.post("/mcp", json=_INITIALIZE, headers=_HEADERS)
+        refused = await client.post(
+            "/mcp", json=_INITIALIZE, headers={**_HEADERS, "host": "localhost:8000"}
+        )
     assert response.status_code == 200
+    assert refused.status_code == 400
 
 
 async def test_http_api_routes_are_unaffected(engine: AsyncEngine, registry: Registry) -> None:

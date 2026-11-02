@@ -11,6 +11,13 @@ from firmloop.db.migrate import upgrade_to_head
 from firmloop.hardware.registry import Registry
 
 
+@pytest.fixture(autouse=True)
+def _test_hosts(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The in-process clients send Host `test` or `testserver`; the production default
+    allows neither."""
+    monkeypatch.setenv("ALLOWED_HOSTS", "127.0.0.1,localhost,test,testserver")
+
+
 @pytest.fixture(scope="session")
 def real_hardware() -> Path:
     """The real hardware dir: HARDWARE_DIR (/repo/hardware in the container), else repo-relative."""

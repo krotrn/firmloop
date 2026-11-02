@@ -74,7 +74,6 @@ from firmloop.targets.virtual import VirtualTarget
 logger = logging.getLogger(__name__)
 
 MCP_PATH = "/mcp"
-DEFAULT_ALLOWED_HOSTS = ("127.0.0.1:8000", "localhost:8000")
 WORK_DEFAULT_WAIT_S = 50
 WORK_MAX_WAIT_S = 55
 SOURCE_MAX = 200_000
@@ -548,10 +547,11 @@ _DESCRIPTIONS = {
 
 
 def build_mcp_server(app: FastAPI, allowed_hosts: Sequence[str]) -> FirmLoopMCP:
-    """The tools bound to `app`. A browser Origin is never allowed."""
+    """The tools bound to `app`, served for the given host names on any port. A browser Origin
+    is never allowed."""
     security = TransportSecuritySettings(
         enable_dns_rebinding_protection=True,
-        allowed_hosts=list(allowed_hosts),
+        allowed_hosts=[entry for host in allowed_hosts for entry in (host, f"{host}:*")],
         allowed_origins=[],
     )
     server = FirmLoopMCP(
@@ -568,7 +568,7 @@ def build_mcp_server(app: FastAPI, allowed_hosts: Sequence[str]) -> FirmLoopMCP:
     return server
 
 
-def mount_mcp(app: FastAPI, allowed_hosts: Sequence[str] = DEFAULT_ALLOWED_HOSTS) -> FirmLoopMCP:
+def mount_mcp(app: FastAPI, allowed_hosts: Sequence[str]) -> FirmLoopMCP:
     """Serve the MCP server at exactly /mcp. Its session manager must run while the app does:
     `app.state.mcp.session_manager.run()` in the lifespan."""
     server = build_mcp_server(app, allowed_hosts)

@@ -24,6 +24,26 @@ def test_frontend_origins_single(monkeypatch: pytest.MonkeyPatch) -> None:
     assert Settings(_env_file=None).frontend_origins == ["http://a.example:3000"]  # pyright: ignore[reportCallIssue]
 
 
+def test_default_allowed_hosts(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("ALLOWED_HOSTS", raising=False)
+    assert Settings(_env_file=None).allowed_hosts == ["127.0.0.1", "localhost"]  # pyright: ignore[reportCallIssue]
+
+
+def test_allowed_hosts_comma_separated(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ALLOWED_HOSTS", "127.0.0.1, localhost ,backend")
+    settings = Settings(_env_file=None)  # pyright: ignore[reportCallIssue]
+    assert settings.allowed_hosts == ["127.0.0.1", "localhost", "backend"]
+
+
+@pytest.mark.parametrize("value", ["", " , ", "*", "localhost,*", "*.example.com", "a:8000"])
+def test_allowed_hosts_refuse_empty_wildcard_and_ports(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    monkeypatch.setenv("ALLOWED_HOSTS", value)
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)  # pyright: ignore[reportCallIssue]
+
+
 ENV_NAMES = [
     "FIRMLOOP_ENV", "LOG_LEVEL", "LLM_PROVIDER", "LLM_FALLBACK_PROVIDER", "GEMINI_API_KEY",
     "GEMINI_MODEL", "OLLAMA_BASE_URL", "OLLAMA_MODEL", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL",
@@ -32,6 +52,7 @@ ENV_NAMES = [
     "MAX_ATTEMPTS", "AUTO_APPROVE", "RUN_TIMEOUT_S", "DEVICE_MODE", "DEVICE_PORT", "SERIAL_GID",
     "RUNNER_URL", "BUILDER_URL", "DEVICE_URL", "NATIVE_REQUEST_TIMEOUT_S", "BUILD_TIMEOUT_S",
     "HARDWARE_DIR", "FIRMWARE_DIR", "DATA_DIR", "DATABASE_URL", "FRONTEND_ORIGINS", "FAKE_LLM_DIR",
+    "ALLOWED_HOSTS",
 ]  # fmt: skip
 
 
@@ -71,6 +92,7 @@ def test_env_example_is_loaded(clean_env: pytest.MonkeyPatch) -> None:
     assert s.device_port is None
     assert s.serial_gid == 986
     assert s.max_attempts == 5
+    assert s.allowed_hosts == ["127.0.0.1", "localhost"]
 
 
 def test_empty_optionals_become_none(clean_env: pytest.MonkeyPatch) -> None:
