@@ -35,4 +35,4 @@ RUN --mount=type=cache,target=/root/.cache/uv UV_LINK_MODE=copy uv sync
 
 EXPOSE 8000
 
-CMD ["uvicorn", "firmloop.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "firmloop.main:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-graceful-shutdown", "3"]
