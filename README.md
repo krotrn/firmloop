@@ -203,7 +203,7 @@ Total ≈ ₹1,800 - 2,500. Wiring is fixed and defined in `hardware/*/manifest.
 | LED + 220 Ω | GPIO 18 | `led` |
 | SSD1306 0.96" OLED (I²C) | SDA 21, SCL 22 | `display` |
 
-**Witness board** (optional, D-132): a second ESP32 DevKitC that watches the `fan`, `buzzer` and `led` lines, measures fan current (INA219) and drives `button` (PC817 optocoupler) and `light` (bright LED at the LDR). It runs fixed firmware from `firmware/witness/`, never generated code. Parts in [docs/PARTS.md](docs/PARTS.md); pins are recorded in the manifests' `witness:` blocks.
+**Witness board** (optional): a second ESP32 DevKitC that watches the `fan`, `buzzer` and `led` lines, measures fan current (INA219) and drives `button` (PC817 optocoupler) and `light` (bright LED at the LDR). It runs fixed firmware from `firmware/witness/`, never generated code. Parts in [docs/PARTS.md](docs/PARTS.md); pins are recorded in the manifests' `witness:` blocks.
 
 Safety: **never** switch mains voltage with the relay. Fan uses its own 5 V supply; ESP32 pins never power a motor.
 
