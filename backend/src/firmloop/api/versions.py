@@ -4,6 +4,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Body, Query
 from pydantic import BaseModel, ConfigDict
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from firmloop.api.deps import EngineDep, OrchestratorDep, RegistryDep
 from firmloop.api.errors import ERROR_RESPONSES
@@ -93,24 +94,23 @@ def version_out(version: Version) -> VersionOut:
     )
 
 
-async def _version(engine: EngineDep, version_id: str) -> Version:
+async def _version(engine: AsyncEngine, version_id: str) -> Version:
     version = await repo.get_version(engine, version_id)
     if version is None:
         raise AppError(ErrorCode.NOT_FOUND, "Version not found.", {"id": version_id})
     return version
 
 
-@router.get("/sessions/{session_id}/versions", response_model=VersionList)
-async def list_versions(
+async def version_page(
+    engine: AsyncEngine,
     session_id: str,
-    engine: EngineDep,
-    status: Literal["candidate", "promoted", "rejected"] | None = None,
-    limit: Annotated[int, Query(ge=1, le=MAX_LIMIT)] = DEFAULT_LIMIT,
-    cursor: str | None = None,
+    *,
+    status: Literal["candidate", "promoted", "rejected"] | None,
+    limit: int,
+    offset: int,
 ) -> VersionList:
     if await repo.get_session(engine, session_id) is None:
         raise AppError(ErrorCode.NOT_FOUND, "Session not found.", {"id": session_id})
-    offset = parse_cursor(cursor)
     rows = await repo.list_versions(
         engine, session_id, status=status, limit=limit + 1, offset=offset
     )
@@ -120,13 +120,11 @@ async def list_versions(
     )
 
 
-@router.get("/versions/{version_id}", response_model=VersionOut)
-async def get_version(version_id: str, engine: EngineDep) -> VersionOut:
+async def get_version_out(engine: AsyncEngine, version_id: str) -> VersionOut:
     return version_out(await _version(engine, version_id))
 
 
-@router.get("/versions/{version_id}/diff", response_model=VersionDiffOut)
-async def diff_versions(version_id: str, against: str, engine: EngineDep) -> VersionDiffOut:
+async def version_diff(engine: AsyncEngine, version_id: str, against: str) -> VersionDiffOut:
     """Changes from the `against` version (old) to this one (new)."""
     new = await _version(engine, version_id)
     old = await _version(engine, against)
@@ -141,6 +139,30 @@ async def diff_versions(version_id: str, against: str, engine: EngineDep) -> Ver
         code_old=old.code,
         code_new=new.code,
     )
+
+
+@router.get("/sessions/{session_id}/versions", response_model=VersionList)
+async def list_versions(
+    session_id: str,
+    engine: EngineDep,
+    status: Literal["candidate", "promoted", "rejected"] | None = None,
+    limit: Annotated[int, Query(ge=1, le=MAX_LIMIT)] = DEFAULT_LIMIT,
+    cursor: str | None = None,
+) -> VersionList:
+    return await version_page(
+        engine, session_id, status=status, limit=limit, offset=parse_cursor(cursor)
+    )
+
+
+@router.get("/versions/{version_id}", response_model=VersionOut)
+async def get_version(version_id: str, engine: EngineDep) -> VersionOut:
+    return await get_version_out(engine, version_id)
+
+
+@router.get("/versions/{version_id}/diff", response_model=VersionDiffOut)
+async def diff_versions(version_id: str, against: str, engine: EngineDep) -> VersionDiffOut:
+    """Changes from the `against` version (old) to this one (new)."""
+    return await version_diff(engine, version_id, against)
 
 
 @router.post("/versions/{version_id}/rollback", response_model=RunOut, status_code=202)

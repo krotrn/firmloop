@@ -4,11 +4,13 @@ Each tool calls the function the matching REST handler calls and returns the sam
 An `AppError` comes back as a tool error whose text is the REST error body.
 """
 
+import asyncio
 import json
 import logging
 import time
-from collections.abc import Sequence
-from typing import Annotated, Any, cast
+from collections.abc import AsyncGenerator, Sequence
+from contextlib import asynccontextmanager
+from typing import Annotated, Any, Literal, cast
 
 from fastapi import FastAPI
 from mcp.server.fastmcp import FastMCP
@@ -16,11 +18,30 @@ from mcp.server.fastmcp.exceptions import ToolError
 from mcp.server.fastmcp.server import StreamableHTTPASGIApp
 from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ContentBlock
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, StrictBool, ValidationError
 from sqlalchemy.ext.asyncio import AsyncEngine
 from starlette.routing import Route
 
 from firmloop.agent.loop import RunOrchestrator
+from firmloop.api.device import (
+    MAX_OVERRIDE_MS,
+    CommandOut,
+    OverrideClearCommand,
+    OverrideCommand,
+    RebootCommand,
+    SetSensorCommand,
+    reconnect_status,
+    run_device_command,
+)
+from firmloop.api.meta import HardwareOut, hardware_out
+from firmloop.api.versions import (
+    VersionDiffOut,
+    VersionList,
+    VersionOut,
+    get_version_out,
+    version_diff,
+    version_page,
+)
 from firmloop.api.views import (
     MAX_LIMIT,
     RunOut,
@@ -30,13 +51,16 @@ from firmloop.api.views import (
     run_out,
     session_page,
 )
+from firmloop.config import Settings
 from firmloop.db import repo
 from firmloop.db.models import TERMINAL_RUN_STATUSES
 from firmloop.errors import AppError, ErrorCode
 from firmloop.events.bus import EventBus, Subscription
-from firmloop.events.models import RunLogEvent
+from firmloop.events.models import DeviceTelemetryEvent, RunLogEvent
 from firmloop.hardware.registry import Registry
+from firmloop.records import DeviceStatus
 from firmloop.spec.wire import WireFollowupUnderstandResult, WireUnderstandResult
+from firmloop.targets.virtual import VirtualTarget
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +72,7 @@ REQUEST_MAX = 2000
 TITLE_MAX = 200
 SOURCE_MAX = 200_000
 MODEL_MAX = 200
+DEVICE_WAIT_MAX_MS = 5000
 WAKE_EVENTS = ("run.status", "run.llm_waiting", "run.finished")
 """Events of the awaited run after which `work` looks at the run again."""
 
@@ -102,6 +127,55 @@ class Accepted(BaseModel):
     accepted: bool = True
 
 
+class TelemetrySnapshot(BaseModel):
+    mode: Literal["run", "test", "override"]
+    t: int
+    s: dict[str, float | int]
+    a: dict[str, float | int]
+    d: list[str]
+
+
+class DeviceSnapshot(BaseModel):
+    device: DeviceStatus
+    telemetry: TelemetrySnapshot | None
+
+
+class LatestTelemetry:
+    """The latest `device.telemetry` event the backend published. One long-lived task reads the
+    event bus while `run()` is entered."""
+
+    def __init__(self, bus: EventBus) -> None:
+        self._bus = bus
+        self.latest: TelemetrySnapshot | None = None
+
+    @asynccontextmanager
+    async def run(self) -> AsyncGenerator[None]:
+        sub = self._bus.subscribe()  # before the task starts, so no event is missed
+
+        async def follow() -> None:
+            nonlocal sub
+            while True:
+                try:
+                    event = await sub.get()
+                except ConnectionAbortedError:
+                    # Events were dropped: subscribe again; the next telemetry event replaces it.
+                    self._bus.unsubscribe(sub)
+                    sub = self._bus.subscribe()
+                    continue
+                if isinstance(event, DeviceTelemetryEvent):
+                    self.latest = TelemetrySnapshot(
+                        mode=event.mode, t=event.t, s=event.s, a=event.a, d=event.d
+                    )
+
+        task = asyncio.create_task(follow())
+        try:
+            yield
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+            self._bus.unsubscribe(sub)
+
+
 class _Tools:
     """The tool functions; the engine, registry and orchestrator are read from the app state at
     call time."""
@@ -124,6 +198,18 @@ class _Tools:
     @property
     def _bus(self) -> EventBus:
         return cast(EventBus, self._app.state.event_bus)
+
+    @property
+    def _env(self) -> Settings:
+        return cast(Settings, self._app.state.env)
+
+    @property
+    def _target(self) -> VirtualTarget:
+        return cast(VirtualTarget, self._app.state.virtual_target)
+
+    @property
+    def _telemetry(self) -> LatestTelemetry:
+        return cast(LatestTelemetry, self._app.state.telemetry)
 
     async def list_sessions(self) -> SessionList:
         return await session_page(self._engine, archived=False, limit=MAX_LIMIT, offset=0)
@@ -195,6 +281,66 @@ class _Tools:
     ) -> Accepted:
         self._orch.chat.submit(task_id, "submit_code", source, model=model)
         return Accepted()
+
+    async def list_hardware(self) -> HardwareOut:
+        return hardware_out(self._registry)
+
+    async def list_versions(
+        self, session_id: str, status: Literal["candidate", "promoted", "rejected"] | None = None
+    ) -> VersionList:
+        return await version_page(
+            self._engine, session_id, status=status, limit=MAX_LIMIT, offset=0
+        )
+
+    async def get_version(self, version_id: str) -> VersionOut:
+        return await get_version_out(self._engine, version_id)
+
+    async def diff_versions(self, version_id: str, against: str) -> VersionDiffOut:
+        return await version_diff(self._engine, version_id, against)
+
+    async def rollback(self, version_id: str, cancel_waiting: bool = False) -> RunOut:
+        run = await self._orch.rollback(version_id, cancel_waiting=cancel_waiting)
+        return await run_out(self._engine, self._registry, run)
+
+    async def device_status(
+        self, wait_ms: Annotated[int, Field(ge=0, le=DEVICE_WAIT_MAX_MS)] = 0
+    ) -> DeviceSnapshot:
+        if wait_ms > 0:
+            await asyncio.sleep(wait_ms / 1000)
+        return DeviceSnapshot(
+            device=await self._orch.device_status(), telemetry=self._telemetry.latest
+        )
+
+    async def set_sensor(self, channel: str, value: StrictBool | int | float) -> CommandOut:
+        return await self._command(
+            SetSensorCommand(action="set_sensor", channel=channel, value=value)
+        )
+
+    async def override(
+        self,
+        channel: str,
+        value: StrictBool,
+        ms: Annotated[int, Field(ge=1, le=MAX_OVERRIDE_MS)],
+    ) -> CommandOut:
+        return await self._command(
+            OverrideCommand(action="override", channel=channel, value=value, ms=ms)
+        )
+
+    async def override_clear(self, channel: str) -> CommandOut:
+        return await self._command(OverrideClearCommand(action="override_clear", channel=channel))
+
+    async def reboot(self) -> CommandOut:
+        return await self._command(RebootCommand(action="reboot"))
+
+    async def reconnect(self) -> DeviceStatus:
+        return await reconnect_status(self._engine, self._env, self._orch)
+
+    async def _command(
+        self, body: SetSensorCommand | OverrideCommand | OverrideClearCommand | RebootCommand
+    ) -> CommandOut:
+        return await run_device_command(
+            body, self._engine, self._env, self._registry, self._orch, self._target
+        )
 
     async def work(
         self,
@@ -318,6 +464,25 @@ _DESCRIPTIONS = {
     "calling this. Then call work(run_id).",
     "reject": "Send the proposed spec back with the user's feedback. Then call work(run_id).",
     "cancel": "Stop a run. Then call work(run_id) to see it finish.",
+    "list_hardware": "List the channels and components generated code can use.",
+    "list_versions": "List the verified versions of a session, newest first. status filters by "
+    "candidate, promoted or rejected.",
+    "get_version": "Read a version with its spec and code.",
+    "diff_versions": "Compare a version with another version of the same session (against): "
+    "returns the spec changes and both versions' code.",
+    "rollback": "Put an earlier promoted version back on the device; starts a run of kind "
+    "rollback. Then call work(run_id) until it returns kind=finished. When device_mode is real, "
+    "ask the user first.",
+    "device_status": "Read the device (mode, connection, running version) and the latest "
+    "telemetry. wait_ms (0..5000) waits first, so values changed by set_sensor or override can "
+    "settle.",
+    "set_sensor": "Set a sensor channel's value on the virtual device. Not possible in real "
+    "mode, and refused with RUN_ACTIVE while a run works.",
+    "override": "Force an on/off output channel to a value for ms milliseconds. When "
+    "device_mode is real, ask the user first. Refused with RUN_ACTIVE while a run works.",
+    "override_clear": "End an override of an output channel early.",
+    "reboot": "Restart the board (real mode only). When device_mode is real, ask the user first.",
+    "reconnect": "Check the device connection and return its status.",
     "get_run": "Read a run with its attempts and test totals. Then call work(run_id) if it is "
     "still going.",
 }
@@ -353,4 +518,5 @@ def mount_mcp(app: FastAPI, allowed_hosts: Sequence[str] = DEFAULT_ALLOWED_HOSTS
         Route(MCP_PATH, endpoint=StreamableHTTPASGIApp(server.session_manager))
     )
     app.state.mcp = server
+    app.state.telemetry = LatestTelemetry(cast(EventBus, app.state.event_bus))
     return server

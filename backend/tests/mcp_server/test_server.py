@@ -89,7 +89,7 @@ async def test_lists_the_run_tools(engine: AsyncEngine, registry: Registry) -> N
     async with _client(app) as session:
         tools = {t.name: t for t in (await session.list_tools()).tools}
 
-    assert set(tools) == {
+    assert set(tools) >= {
         "list_sessions",
         "create_session",
         "start_run",

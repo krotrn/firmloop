@@ -111,7 +111,7 @@ async def health(
     )
 
 
-def _hardware(registry: Registry) -> HardwareOut:
+def hardware_out(registry: Registry) -> HardwareOut:
     components = [
         ComponentOut(
             id=m.id,
@@ -147,4 +147,4 @@ def _hardware(registry: Registry) -> HardwareOut:
 
 @router.get("/hardware")
 async def hardware(registry: RegistryDep) -> HardwareOut:
-    return _hardware(registry)
+    return hardware_out(registry)

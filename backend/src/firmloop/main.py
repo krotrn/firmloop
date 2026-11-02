@@ -103,6 +103,7 @@ def create_app() -> FastAPI:
             )
             stack.push_async_callback(pump.stop)
             pump.start()
+            await stack.enter_async_context(app.state.telemetry.run())
             await stack.enter_async_context(app.state.mcp.session_manager.run())
             yield
 

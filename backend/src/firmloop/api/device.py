@@ -5,14 +5,18 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
+from sqlalchemy.ext.asyncio import AsyncEngine
 
+from firmloop.agent.loop import RunOrchestrator
 from firmloop.api.deps import EngineDep, EnvDep, OrchestratorDep, RegistryDep, VirtualTargetDep
 from firmloop.api.errors import ERROR_RESPONSES
+from firmloop.config import Settings
 from firmloop.db import repo
 from firmloop.errors import AppError, ErrorCode
 from firmloop.hardware.manifest import Channel
 from firmloop.hardware.registry import Registry
 from firmloop.records import DeviceStatus
+from firmloop.targets.virtual import VirtualTarget
 
 router = APIRouter(prefix="/api", tags=["device"], responses=ERROR_RESPONSES)
 
@@ -111,21 +115,26 @@ async def get_device(orchestrator: OrchestratorDep) -> DeviceStatus:
     return await orchestrator.device_status()
 
 
-@router.post("/device/reconnect", response_model=DeviceStatus)
-async def reconnect(engine: EngineDep, env: EnvDep, orchestrator: OrchestratorDep) -> DeviceStatus:
+async def reconnect_status(
+    engine: AsyncEngine, env: Settings, orchestrator: RunOrchestrator
+) -> DeviceStatus:
     if (await repo.get_settings(engine, env)).device_mode == "real":
         raise AppError(ErrorCode.DEVICE_UNAVAILABLE, "No board is connected.")
     return await orchestrator.device_status()
 
 
-@router.post("/device/command", response_model=CommandOut)
-async def command(
+@router.post("/device/reconnect", response_model=DeviceStatus)
+async def reconnect(engine: EngineDep, env: EnvDep, orchestrator: OrchestratorDep) -> DeviceStatus:
+    return await reconnect_status(engine, env, orchestrator)
+
+
+async def run_device_command(
     body: DeviceCommand,
-    engine: EngineDep,
-    env: EnvDep,
-    registry: RegistryDep,
-    orchestrator: OrchestratorDep,
-    target: VirtualTargetDep,
+    engine: AsyncEngine,
+    env: Settings,
+    registry: Registry,
+    orchestrator: RunOrchestrator,
+    target: VirtualTarget,
 ) -> CommandOut:
     # Check the request against the registry first, then the mode, then whether a run works.
     sensor_value: bool | int | float = 0
@@ -156,3 +165,15 @@ async def command(
             case RebootCommand():  # pragma: no cover - refused above
                 pass
     return CommandOut()
+
+
+@router.post("/device/command", response_model=CommandOut)
+async def command(
+    body: DeviceCommand,
+    engine: EngineDep,
+    env: EnvDep,
+    registry: RegistryDep,
+    orchestrator: OrchestratorDep,
+    target: VirtualTargetDep,
+) -> CommandOut:
+    return await run_device_command(body, engine, env, registry, orchestrator, target)
