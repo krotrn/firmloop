@@ -47,10 +47,18 @@ def parse_url(argv: Sequence[str], env: Mapping[str, str]) -> str:
     return url
 
 
-async def _pump(source: ReadStream, sink: WriteStream, direction: str) -> None:
+class RelayError(Exception):
+    """The HTTP side failed mid-session; the stdio client would otherwise wait forever."""
+
+
+async def _pump(source: ReadStream, sink: WriteStream, *, fatal_errors: bool) -> None:
     async for item in source:
         if isinstance(item, Exception):
-            log.warning("%s: transport error: %s", direction, item)
+            if fatal_errors:
+                raise RelayError(f"{type(item).__name__}: {item}")
+            # A malformed line on stdin is skipped on purpose: one bad line must not end the
+            # session.
+            log.warning("skipping unreadable client message: %s", item)
             continue
         await sink.send(item)
 
@@ -65,11 +73,11 @@ async def relay(
     async with anyio.create_task_group() as tg:
 
         async def to_server() -> None:
-            await _pump(client_read, server_write, "client->server")
+            await _pump(client_read, server_write, fatal_errors=False)
             tg.cancel_scope.cancel()
 
         async def to_client() -> None:
-            await _pump(server_read, client_write, "server->client")
+            await _pump(server_read, client_write, fatal_errors=True)
             tg.cancel_scope.cancel()
 
         tg.start_soon(to_server)
@@ -95,6 +103,12 @@ async def _run(url: str) -> None:
         await relay(client_read, client_write, server_read, server_write)
 
 
+def _first_leaf(exc: BaseException) -> BaseException:
+    while isinstance(exc, BaseExceptionGroup) and exc.exceptions:
+        exc = exc.exceptions[0]
+    return exc
+
+
 def main(argv: Sequence[str], env: Mapping[str, str]) -> int:
     logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
     try:
@@ -104,11 +118,12 @@ def main(argv: Sequence[str], env: Mapping[str, str]) -> int:
         return 2
     try:
         anyio.run(_run, url)
-    except httpx.TransportError as exc:
-        print(f"mcp_stdio: cannot reach {url}: {type(exc).__name__}: {exc}", file=sys.stderr)
-        return 1
     except KeyboardInterrupt:
         return 0
+    except (BaseExceptionGroup, RelayError, httpx.HTTPError) as exc:
+        leaf = _first_leaf(exc)
+        print(f"mcp_stdio: {url}: {type(leaf).__name__}: {leaf}", file=sys.stderr)
+        return 1
     return 0
 
 

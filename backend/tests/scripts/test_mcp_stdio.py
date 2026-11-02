@@ -11,6 +11,7 @@ import pytest
 from mcp.client.session import ClientSession
 from mcp.server.fastmcp import FastMCP
 from mcp.shared.memory import create_client_server_memory_streams
+from mcp.types import TextContent
 
 _SPEC = importlib.util.spec_from_file_location(
     "mcp_stdio", Path(__file__).resolve().parents[2] / "scripts" / "mcp_stdio.py"
@@ -102,7 +103,45 @@ async def test_relay_round_trip_and_close() -> None:
                     tools = await session.list_tools()
                     assert [t.name for t in tools.tools] == ["echo"]
                     result = await session.call_tool("echo", {"text": "hi"})
-                    assert result.content[0].text == "echo:hi"  # type: ignore[union-attr]
+                    block = result.content[0]
+                    assert isinstance(block, TextContent)
+                    assert block.text == "echo:hi"
                 await app_write.aclose()
                 await relay_done.wait()
             tg.cancel_scope.cancel()
+
+
+async def test_relay_ends_with_error_when_server_side_yields_exception() -> None:
+    async with (
+        create_client_server_memory_streams() as (_app, relay_app_side),
+        create_client_server_memory_streams() as (relay_server_side, server_streams),
+    ):
+        _, server_write = server_streams
+        with anyio.fail_after(10), pytest.raises(BaseExceptionGroup) as info:
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(lambda: mcp_stdio.relay(*relay_app_side, *relay_server_side))
+                await server_write.send(RuntimeError("boom"))  # type: ignore[arg-type]
+        leaf = mcp_stdio._first_leaf(info.value)
+        assert isinstance(leaf, mcp_stdio.RelayError)
+        assert "boom" in str(leaf)
+
+
+def test_main_reports_transport_error_from_group_as_one_line(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import httpx
+
+    async def fail(url: str) -> None:
+        async with anyio.create_task_group() as tg:
+
+            async def boom() -> None:
+                raise httpx.ConnectError("dropped")
+
+            tg.start_soon(boom)
+
+    monkeypatch.setattr(mcp_stdio, "_run", fail)
+    assert mcp_stdio.main([], {}) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert len(captured.err.strip().splitlines()) == 1
+    assert "dropped" in captured.err
