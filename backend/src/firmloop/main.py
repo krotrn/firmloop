@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncGenerator, Callable
+from collections.abc import AsyncGenerator, Callable, Sequence
 from contextlib import AbstractAsyncContextManager, AsyncExitStack, asynccontextmanager
 
 from fastapi import FastAPI
@@ -21,6 +21,7 @@ from firmloop.db.migrate import upgrade_to_head
 from firmloop.events.bus import EventBus
 from firmloop.events.models import DeviceStatusEvent
 from firmloop.hardware.registry import Registry
+from firmloop.mcp.server import DEFAULT_ALLOWED_HOSTS, mount_mcp
 from firmloop.targets.telemetry_pump import TelemetryPump
 from firmloop.targets.virtual import VirtualTarget
 
@@ -30,6 +31,7 @@ def assemble_app(
     event_bus: EventBus,
     *,
     lifespan: Callable[[FastAPI], AbstractAsyncContextManager[None]] | None = None,
+    mcp_allowed_hosts: Sequence[str] = DEFAULT_ALLOWED_HOSTS,
 ) -> FastAPI:
     """The FastAPI app with its middleware, error handlers and routers, but no state: the
     lifespan (or a test) fills `app.state`."""
@@ -45,6 +47,7 @@ def assemble_app(
     app.include_router(build_ws_router(event_bus, settings.frontend_origins))
     for module in (meta, sessions, runs, versions, device, settings_api):
         app.include_router(module.router)
+    mount_mcp(app, mcp_allowed_hosts)
     return app
 
 
@@ -100,6 +103,7 @@ def create_app() -> FastAPI:
             )
             stack.push_async_callback(pump.stop)
             pump.start()
+            await stack.enter_async_context(app.state.mcp.session_manager.run())
             yield
 
     return assemble_app(settings, event_bus, lifespan=lifespan)
