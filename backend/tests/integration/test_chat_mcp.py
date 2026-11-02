@@ -14,6 +14,7 @@ from mcp.client.session import ClientSession
 from mcp.shared.memory import create_connected_server_and_client_session
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from firmloop.api.versions import version_page
 from firmloop.db import repo
 from firmloop.hardware.registry import Registry
 from firmloop.llm.chat import ChatProvider
@@ -198,14 +199,12 @@ async def test_first_try_run_then_the_chat_drives_the_device_and_rolls_back(
         assert (back["kind"], back["status"]) == ("finished", "succeeded")
         assert back["version"]["id"] == v1
         listed = await chat.ok("list_versions", session_id=chat.harness.session_id)
-        rest_ids = [v.id for v in await _versions(engine, chat.harness.session_id)]
-        assert [v["id"] for v in listed["items"]] == rest_ids
+        rest = await version_page(engine, chat.harness.session_id, status=None, limit=50, offset=0)
+        assert [(v["id"], v["number"], v["status"]) for v in listed["items"]] == [
+            (v.id, v.number, v.status) for v in rest.items
+        ]
         hello = await chat.harness.target.hello()
         assert hello.fw == v1
-
-
-async def _versions(engine: AsyncEngine, session_id: str) -> list[Any]:
-    return list(await repo.list_versions(engine, session_id, status=None, limit=50, offset=0))
 
 
 async def test_a_semantically_wrong_spec_is_retried_with_feedback(
@@ -282,7 +281,9 @@ async def test_compile_error_feedback_reaches_the_next_code_task(
         assert done["status"] == "succeeded"
         code_tasks = [t for t in chat.tasks if t["submit_tool"] == "submit_code"]
         assert len(code_tasks) == 2
-        assert "setBoolean" in chat.last_message(code_tasks[1])
+        feedback = chat.last_message(code_tasks[1])
+        assert "<feedback>" in feedback
+        assert "call to 'fl::setBoolean' is not allowed" in feedback
         run = await chat.ok("get_run", run_id=run_id)
         assert len(run["attempts"]) == 2
 
@@ -295,8 +296,13 @@ async def test_unanswered_task_times_out_as_llm_timeout(
         task = await chat.work(run_id)
         assert task["kind"] == "llm_task"
 
-        await asyncio.sleep(1)
-        done = await chat.work(run_id)
+        # the unanswered task stays parked until the chat timeout fires
+        done = await chat.work(run_id, wait_s=1)
+        for _ in range(50):
+            if done["kind"] == "finished":
+                break
+            await asyncio.sleep(0.1)
+            done = await chat.work(run_id, wait_s=1)
 
         assert (done["kind"], done["status"]) == ("finished", "failed")
         assert done["failure"]["code"] == "LLM_TIMEOUT"
