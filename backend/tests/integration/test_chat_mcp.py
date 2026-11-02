@@ -31,8 +31,11 @@ from support.orchestration import (
     spec_reply,
 )
 
-BROKEN_CODE = GOOD_CODE.replace("fl::setBool(", "fl::setBoolean(", 1)
-assert BROKEN_CODE != GOOD_CODE
+# Passes the safety checker, fails to compile (wrong number of arguments).
+NO_COMPILE_CODE = GOOD_CODE.replace(
+    'fl::setBool("fan", fl::readFloat("temp") > 30.0f);', 'fl::setBool("fan");'
+)
+assert NO_COMPILE_CODE != GOOD_CODE
 
 # Events whose count depends on timing, left out when comparing runs.
 NOISY_EVENTS = {"run.llm_waiting", "run.llm_answered", "run.log"}
@@ -276,16 +279,22 @@ async def test_compile_error_feedback_reaches_the_next_code_task(
     async with chat_app(engine, registry) as chat:
         run_id = await chat.start()
 
-        done = await chat.play(run_id, [{"result": _spec()}, _code(BROKEN_CODE), _code()])
+        done = await chat.play(run_id, [{"result": _spec()}, _code(NO_COMPILE_CODE), _code()])
 
         assert done["status"] == "succeeded"
         code_tasks = [t for t in chat.tasks if t["submit_tool"] == "submit_code"]
         assert len(code_tasks) == 2
         feedback = chat.last_message(code_tasks[1])
         assert "<feedback>" in feedback
-        assert "call to 'fl::setBoolean' is not allowed" in feedback
+        assert "error" in feedback.lower()
         run = await chat.ok("get_run", run_id=run_id)
-        assert len(run["attempts"]) == 2
+        first, second = run["attempts"]
+        assert (first["safety_ok"], first["compile_ok"], first["stage_reached"]) == (
+            True,
+            False,
+            "compile",
+        )
+        assert second["compile_ok"] is True
 
 
 async def test_unanswered_task_times_out_as_llm_timeout(
