@@ -260,6 +260,20 @@ describe("SettingsPage", () => {
     );
   });
 
+  it("does not offer chat as a fallback provider", async () => {
+    vi.spyOn(settingsService, "getSettings").mockResolvedValue({
+      ...settings,
+      available_providers: ["gemini", "fake", "chat"],
+      llm_fallback_provider: null,
+    });
+    renderPage();
+    await userEvent.click(
+      await screen.findByRole("combobox", { name: "Fallback provider" })
+    );
+    expect(await screen.findByRole("option", { name: "fake" })).toBeVisible();
+    expect(screen.queryByRole("option", { name: /chat/i })).toBeNull();
+  });
+
   it("trims the model before sending and blocks a blank model", async () => {
     const update = vi
       .spyOn(settingsService, "updateSettings")

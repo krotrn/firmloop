@@ -162,7 +162,9 @@ function SettingsForm({ settings }: { settings: Settings }) {
   const providers = Array.from(
     new Set<Provider>([...settings.available_providers, settings.llm_provider])
   );
-  const fallbackChoices = providers.filter((p) => p !== provider);
+  const fallbackChoices = providers.filter(
+    (p) => p !== provider && p !== "chat"
+  );
   const providerItems = providers.map((p) => ({
     value: p,
     label: providerLabel(p),
