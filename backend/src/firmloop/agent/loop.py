@@ -42,6 +42,7 @@ from firmloop.events.models import (
     RunCreatedEvent,
 )
 from firmloop.hardware.registry import Registry
+from firmloop.llm.chat import ChatBridge
 from firmloop.records import Answer, DeviceStatus
 from firmloop.spec import models as m
 from firmloop.spec.validate import validate_spec
@@ -77,6 +78,7 @@ class RunOrchestrator:
         verify: VerifyFn = default_verify,
         providers: ProviderFactory = default_providers,
         clock: Callable[[], float] = time.monotonic,
+        chat: ChatBridge | None = None,
     ) -> None:
         self._engine = engine
         self._registry = registry
@@ -86,6 +88,7 @@ class RunOrchestrator:
         self._virtual_target = virtual_target
         self._board = board or Board(engine)
         self.lock = WorkLock(engine)
+        self.chat = chat or ChatBridge()
         self._phases = Phases(
             Deps(
                 engine=engine,
@@ -99,6 +102,7 @@ class RunOrchestrator:
                 verify=verify,
                 providers=providers,
                 clock=clock,
+                chat=self.chat,
             )
         )
         self._tasks: dict[str, asyncio.Task[None]] = {}

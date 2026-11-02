@@ -105,6 +105,22 @@ async def test_put_rejects_a_provider_that_is_not_configured(
     assert cleared.json()["llm_fallback_provider"] is None
 
 
+async def test_chat_is_offered_but_refused_as_the_fallback(
+    engine: AsyncEngine, registry: Registry
+) -> None:
+    app, _h, _t = await build_app(engine, registry)
+    async with client_for(app) as client:
+        offered = (await client.get("/api/settings")).json()["available_providers"]
+        primary = await client.put("/api/settings", json={"llm_provider": "chat"})
+        fallback = await client.put("/api/settings", json={"llm_fallback_provider": "chat"})
+    assert "chat" in offered
+    assert primary.status_code == 200
+    assert (primary.json()["llm_provider"], primary.json()["llm_model"]) == ("chat", "chat")
+    assert fallback.status_code == 422
+    assert fallback.json()["error"]["code"] == "VALIDATION"
+    assert await repo.get_stored_settings(engine) == {"llm_provider": "chat"}
+
+
 async def test_switching_provider_drops_the_model_chosen_for_the_old_one(
     engine: AsyncEngine, registry: Registry
 ) -> None:

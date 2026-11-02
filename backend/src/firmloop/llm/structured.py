@@ -244,7 +244,8 @@ class StructuredCaller:
                     f"{provider.name} failed: {code.value}",
                     {"provider": provider.name, "cause": code.value, "error": detail},
                 ) from exc
-            row = _with_usage(base, usage, reply)
+            # A provider may learn its model name only from the reply (the chat provider).
+            row = _with_usage(base, usage, reply, provider.model)
             if log_now:
                 await self._log(row)
             return reply, row
@@ -256,10 +257,11 @@ class StructuredCaller:
             logger.exception("could not write llm_calls row (%s)", row.purpose)
 
 
-def _with_usage(base: repo.NewLLMCall, usage: LLMUsage, reply: str) -> repo.NewLLMCall:
+def _with_usage(base: repo.NewLLMCall, usage: LLMUsage, reply: str, model: str) -> repo.NewLLMCall:
     return base.model_copy(
         update={
             "ok": True,
+            "model": model,
             "input_tokens": usage.input_tokens,
             "output_tokens": usage.output_tokens,
             "latency_ms": usage.latency_ms,

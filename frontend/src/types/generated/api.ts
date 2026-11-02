@@ -964,21 +964,21 @@ export interface components {
             /** Auto Approve */
             auto_approve: boolean;
             /** Available Providers */
-            available_providers: ("gemini" | "ollama" | "anthropic" | "fake")[];
+            available_providers: ("gemini" | "ollama" | "anthropic" | "chat" | "fake")[];
             /**
              * Device Mode
              * @enum {string}
              */
             device_mode: "real" | "virtual";
             /** Llm Fallback Provider */
-            llm_fallback_provider: ("gemini" | "ollama" | "anthropic" | "fake") | null;
+            llm_fallback_provider: ("gemini" | "ollama" | "anthropic" | "chat" | "fake") | null;
             /** Llm Model */
             llm_model: string;
             /**
              * Llm Provider
              * @enum {string}
              */
-            llm_provider: "gemini" | "ollama" | "anthropic" | "fake";
+            llm_provider: "gemini" | "ollama" | "anthropic" | "chat" | "fake";
             /** Max Attempts */
             max_attempts: number;
             /** Speak Results */
@@ -997,11 +997,11 @@ export interface components {
             /** Device Mode */
             device_mode?: ("real" | "virtual") | null;
             /** Llm Fallback Provider */
-            llm_fallback_provider?: ("gemini" | "ollama" | "anthropic" | "fake") | null;
+            llm_fallback_provider?: ("gemini" | "ollama" | "anthropic" | "chat" | "fake") | null;
             /** Llm Model */
             llm_model?: string | null;
             /** Llm Provider */
-            llm_provider?: ("gemini" | "ollama" | "anthropic" | "fake") | null;
+            llm_provider?: ("gemini" | "ollama" | "anthropic" | "chat" | "fake") | null;
             /** Max Attempts */
             max_attempts?: number | null;
             /** Speak Results */
@@ -3595,11 +3595,11 @@ export const servicesOutDeviceValues: ReadonlyArray<FlattenedDeepRequired<compon
 export const servicesOutLlmValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ServicesOut"]["llm"]> = ["ok", "unconfigured", "down"];
 export const servicesOutRunnerValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ServicesOut"]["runner"]> = ["ok", "down"];
 export const setSensorCommandActionValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SetSensorCommand"]["action"]> = ["set_sensor"];
-export const settingsOutAvailable_providersValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SettingsOut"]["available_providers"]> = ["gemini", "ollama", "anthropic", "fake"];
+export const settingsOutAvailable_providersValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SettingsOut"]["available_providers"]> = ["gemini", "ollama", "anthropic", "chat", "fake"];
 export const settingsOutDevice_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SettingsOut"]["device_mode"]> = ["real", "virtual"];
-export const settingsOutLlm_fallback_providerAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SettingsOut"]["llm_fallback_provider"]> = ["gemini", "ollama", "anthropic", "fake"];
-export const settingsOutLlm_providerValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SettingsOut"]["llm_provider"]> = ["gemini", "ollama", "anthropic", "fake"];
+export const settingsOutLlm_fallback_providerAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SettingsOut"]["llm_fallback_provider"]> = ["gemini", "ollama", "anthropic", "chat", "fake"];
+export const settingsOutLlm_providerValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SettingsOut"]["llm_provider"]> = ["gemini", "ollama", "anthropic", "chat", "fake"];
 export const settingsUpdateDevice_modeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SettingsUpdate"]["device_mode"]> = ["real", "virtual"];
-export const settingsUpdateLlm_fallback_providerAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SettingsUpdate"]["llm_fallback_provider"]> = ["gemini", "ollama", "anthropic", "fake"];
-export const settingsUpdateLlm_providerAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SettingsUpdate"]["llm_provider"]> = ["gemini", "ollama", "anthropic", "fake"];
+export const settingsUpdateLlm_fallback_providerAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SettingsUpdate"]["llm_fallback_provider"]> = ["gemini", "ollama", "anthropic", "chat", "fake"];
+export const settingsUpdateLlm_providerAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SettingsUpdate"]["llm_provider"]> = ["gemini", "ollama", "anthropic", "chat", "fake"];
 export const testCaseOriginValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TestCase"]["origin"]> = ["scenario", "boundary", "truth_table"];

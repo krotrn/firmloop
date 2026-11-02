@@ -10,6 +10,7 @@ from typing import Any, Literal
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from firmloop.agent.loop import RunOrchestrator
+from firmloop.agent.phases import ProviderFactory
 from firmloop.clients.runner import CaseIn, CaseResult, NativeTestResult, RunnerHealth
 from firmloop.config import Settings
 from firmloop.db import repo
@@ -342,6 +343,7 @@ async def make(
     *,
     llm: Sequence[Any] = (),
     provider: FakeProvider | None = None,
+    providers: ProviderFactory | None = None,
     outcomes: Sequence[str] = (),
     verify: FakeVerify | None = None,
     target: FakeTarget | None = None,
@@ -363,7 +365,7 @@ async def make(
         virtual_target=target,
         header=HEADER,
         verify=verify,
-        providers=lambda _settings: (fake, None),
+        providers=providers or (lambda _settings: (fake, None)),
     )
     if session_id is None:
         session_id = (await repo.create_session(engine, "Fan demo")).id if create_session else ""

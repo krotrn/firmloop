@@ -4,6 +4,7 @@ rollback and real mode."""
 import asyncio
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from firmloop.agent.coder import MISSING_BLOCK_FEEDBACK
@@ -11,6 +12,7 @@ from firmloop.agent.phases import NO_BOARD_MESSAGE
 from firmloop.db import repo
 from firmloop.errors import AppError, ErrorCode
 from firmloop.hardware.registry import Registry
+from firmloop.llm.chat import ChatBridge, ChatProvider, ChatTask
 from firmloop.spec import models as m
 from support.orchestration import (
     GOOD_CODE,
@@ -37,6 +39,60 @@ async def _failed_run(h: Harness) -> str:
 
 
 # --- cancellation -----
+
+
+async def _chat_task(bridge: ChatBridge) -> ChatTask:
+    for _ in range(500):
+        task = bridge.pending()
+        if task is not None:
+            return task
+        await asyncio.sleep(0.001)
+    raise AssertionError("no chat task was parked")
+
+
+def _chat_providers(_settings: object) -> tuple[ChatProvider, None]:
+    return ChatProvider(timeout_s=5), None
+
+
+async def test_chat_provider_answers_for_its_run(engine: AsyncEngine, registry: Registry) -> None:
+    h = await make(
+        engine, registry, providers=_chat_providers, outcomes=["pass"], auto_approve=True
+    )
+    run = await h.orch.start_request(h.session_id, "Fan on")
+
+    task = await _chat_task(h.orch.chat)
+    assert (task.run_id, task.session_id, task.submit_tool) == (run.id, h.session_id, "submit_spec")
+    h.orch.chat.submit(task.task_id, "submit_spec", spec_reply(), model="claude-opus-5-5")
+    task = await _chat_task(h.orch.chat)
+    assert task.submit_tool == "submit_code"
+    h.orch.chat.submit(task.task_id, "submit_code", GOOD_CODE, model=None)
+
+    done = await h.settle(run)
+    assert done.status == "succeeded", (done.failure_code, done.failure_message)
+    assert done.provider == "chat"
+    async with engine.connect() as conn:
+        calls = await conn.execute(
+            text("SELECT provider, model FROM llm_calls WHERE run_id = :id ORDER BY id"),
+            {"id": run.id},
+        )
+    assert [tuple(row) for row in calls] == [
+        ("chat", "claude-opus-5-5"),
+        ("chat", "chat"),
+    ]
+
+
+async def test_cancel_drops_the_pending_chat_task(engine: AsyncEngine, registry: Registry) -> None:
+    h = await make(engine, registry, providers=_chat_providers)
+    run = await h.orch.start_request(h.session_id, "Fan on")
+    task = await _chat_task(h.orch.chat)
+
+    cancelled = await h.orch.cancel(run.id)
+
+    assert cancelled.status == "cancelled"
+    assert h.orch.chat.pending() is None
+    with pytest.raises(AppError) as info:
+        h.orch.chat.submit(task.task_id, "submit_spec", spec_reply(), model=None)
+    assert info.value.code is ErrorCode.NOT_FOUND
 
 
 async def test_cancel_mid_coding(engine: AsyncEngine, registry: Registry) -> None:

@@ -4,6 +4,7 @@ from firmloop.config import ProviderName, Settings
 from firmloop.errors import AppError, ErrorCode
 from firmloop.llm.anthropic import AnthropicProvider
 from firmloop.llm.base import LLMProvider
+from firmloop.llm.chat import ChatProvider
 from firmloop.llm.fake import FakeProvider
 from firmloop.llm.gemini import GeminiProvider
 from firmloop.llm.ollama import OllamaProvider
@@ -54,6 +55,8 @@ def create_provider(
                 timeout_s=timeout_s,
                 num_ctx=settings.ollama_num_ctx,
             )
+        case "chat":
+            return ChatProvider(timeout_s=timeout_s)
         case "fake":
             fake = FakeProvider.from_dir(settings.fake_llm_dir)
             fake.model = chosen_model

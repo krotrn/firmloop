@@ -7,7 +7,7 @@ from typing import Annotated, Literal, Self
 from pydantic import SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
-ProviderName = Literal["gemini", "ollama", "anthropic", "fake"]
+ProviderName = Literal["gemini", "ollama", "anthropic", "chat", "fake"]
 DeviceMode = Literal["real", "virtual"]
 
 EDITABLE_SETTINGS = frozenset(
@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     gemini_timeout_s: float = 120.0
     anthropic_timeout_s: float = 120.0
     ollama_timeout_s: float = 300.0
+    # Time the chat app has to answer one request of the chat provider.
+    chat_timeout_s: float = 300.0
     ollama_num_ctx: int = 8192
     # Directory with canned responses for the test-only fake provider.
     fake_llm_dir: Path = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "fake_llm"
@@ -113,6 +115,7 @@ class Settings(BaseSettings):
         "gemini_timeout_s",
         "anthropic_timeout_s",
         "ollama_timeout_s",
+        "chat_timeout_s",
         "run_timeout_s",
         "native_request_timeout_s",
         "build_timeout_s",
@@ -138,6 +141,14 @@ class Settings(BaseSettings):
                     raise ValueError("the fake provider is only available when FIRMLOOP_ENV=test")
         return self
 
+    @model_validator(mode="after")
+    def _chat_is_not_a_fallback(self) -> Self:
+        # The chat app answers only while a person drives it, so it cannot stand in for another
+        # provider that failed.
+        if self.llm_fallback_provider == "chat":
+            raise ValueError("the chat provider cannot be the fallback provider")
+        return self
+
     def provider_model(self, provider: ProviderName) -> str:
         match provider:
             case "gemini":
@@ -146,6 +157,8 @@ class Settings(BaseSettings):
                 return self.ollama_model
             case "anthropic":
                 return self.anthropic_model
+            case "chat":
+                return "chat"
             case "fake":
                 return "fake"
 
@@ -157,6 +170,8 @@ class Settings(BaseSettings):
                 return self.ollama_timeout_s
             case "anthropic":
                 return self.anthropic_timeout_s
+            case "chat":
+                return self.chat_timeout_s
             case "fake":
                 return FAKE_TIMEOUT_S
 
@@ -168,11 +183,13 @@ class Settings(BaseSettings):
                 return self.anthropic_api_key is not None
             case "ollama":
                 return bool(self.ollama_base_url)
+            case "chat":
+                return True
             case "fake":
                 return self.firmloop_env == "test"
 
     def available_providers(self) -> list[ProviderName]:
-        names: list[ProviderName] = ["gemini", "ollama", "anthropic"]
+        names: list[ProviderName] = ["gemini", "ollama", "anthropic", "chat"]
         if self.firmloop_env == "test":
             names.append("fake")
         return [n for n in names if self.provider_configured(n)]

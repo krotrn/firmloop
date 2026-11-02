@@ -53,6 +53,7 @@ from firmloop.events.models import Question as QuestionPayload
 from firmloop.hardware.codegen import generate_channels_cpp
 from firmloop.hardware.registry import Registry
 from firmloop.llm.base import LLMProvider
+from firmloop.llm.chat import ChatBridge, ChatProvider
 from firmloop.llm.factory import create_provider
 from firmloop.llm.structured import CallContext, StructuredCaller
 from firmloop.records import DeviceStatus, RunningVersion
@@ -187,6 +188,7 @@ class Deps:
     verify: VerifyFn = default_verify
     providers: ProviderFactory = default_providers
     clock: Callable[[], float] = time.monotonic
+    chat: ChatBridge = field(default_factory=ChatBridge)
     lib_version: str = field(init=False)
 
     def __post_init__(self) -> None:
@@ -523,6 +525,8 @@ class Phases:
                 if exc.code not in _PROVIDER_SETUP_CODES:
                     raise
                 raise AppError(ErrorCode.LLM_UNAVAILABLE, exc.message, exc.details) from exc
+            if isinstance(primary, ChatProvider):
+                primary.bind(self.d.chat, run_id=run.id, session_id=run.session_id)
             caller = StructuredCaller(self.d.engine, primary, fallback)
             self._callers[run.id] = caller
         return caller

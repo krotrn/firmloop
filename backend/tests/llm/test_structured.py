@@ -287,3 +287,27 @@ async def test_history_not_extended_after_final_failure(engine: AsyncEngine) -> 
     with pytest.raises(AppError):
         await _call(_caller(engine, fake))
     assert [len(c.messages) for c in fake.calls] == [1, 3, 5, 7]
+
+
+class _ReportsModel(FakeProvider):
+    """Learns its model name only from the reply, like the chat provider."""
+
+    async def complete(
+        self,
+        messages: list[Message],
+        *,
+        temperature: float,
+        max_tokens: int,
+        json_schema: dict[str, Any] | None = None,
+    ) -> tuple[str, Any]:
+        reply = await super().complete(
+            messages, temperature=temperature, max_tokens=max_tokens, json_schema=json_schema
+        )
+        self.model = "reported-model"
+        return reply
+
+
+async def test_logged_model_is_the_one_known_after_the_reply(engine: AsyncEngine) -> None:
+    provider = _ReportsModel([GOOD], model="before")
+    assert await _call(_caller(engine, provider)) == "x"
+    assert [r["model"] for r in await _rows(engine)] == ["reported-model"]

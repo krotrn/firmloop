@@ -1814,6 +1814,7 @@
                 "gemini",
                 "ollama",
                 "anthropic",
+                "chat",
                 "fake"
               ],
               "type": "string"
@@ -1836,6 +1837,7 @@
                   "gemini",
                   "ollama",
                   "anthropic",
+                  "chat",
                   "fake"
                 ],
                 "type": "string"
@@ -1855,6 +1857,7 @@
               "gemini",
               "ollama",
               "anthropic",
+              "chat",
               "fake"
             ],
             "title": "Llm Provider",
@@ -1924,6 +1927,7 @@
                   "gemini",
                   "ollama",
                   "anthropic",
+                  "chat",
                   "fake"
                 ],
                 "type": "string"
@@ -1954,6 +1958,7 @@
                   "gemini",
                   "ollama",
                   "anthropic",
+                  "chat",
                   "fake"
                 ],
                 "type": "string"

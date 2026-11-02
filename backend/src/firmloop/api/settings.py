@@ -57,6 +57,12 @@ class SettingsUpdate(BaseModel):
                 raise ValueError(f"{key} cannot be null")
         return self
 
+    @model_validator(mode="after")
+    def _chat_is_not_a_fallback(self) -> Self:
+        if self.llm_fallback_provider == "chat":
+            raise ValueError("the chat provider cannot be the fallback provider")
+        return self
+
 
 def _flag(stored: dict[str, object], key: str) -> bool:
     value = stored.get(key)

@@ -27,7 +27,8 @@ def test_frontend_origins_single(monkeypatch: pytest.MonkeyPatch) -> None:
 ENV_NAMES = [
     "FIRMLOOP_ENV", "LOG_LEVEL", "LLM_PROVIDER", "LLM_FALLBACK_PROVIDER", "GEMINI_API_KEY",
     "GEMINI_MODEL", "OLLAMA_BASE_URL", "OLLAMA_MODEL", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL",
-    "GEMINI_TIMEOUT_S", "ANTHROPIC_TIMEOUT_S", "OLLAMA_TIMEOUT_S", "OLLAMA_NUM_CTX",
+    "GEMINI_TIMEOUT_S", "ANTHROPIC_TIMEOUT_S", "OLLAMA_TIMEOUT_S", "CHAT_TIMEOUT_S",
+    "OLLAMA_NUM_CTX",
     "MAX_ATTEMPTS", "AUTO_APPROVE", "RUN_TIMEOUT_S", "DEVICE_MODE", "DEVICE_PORT", "SERIAL_GID",
     "RUNNER_URL", "BUILDER_URL", "DEVICE_URL", "NATIVE_REQUEST_TIMEOUT_S", "BUILD_TIMEOUT_S",
     "HARDWARE_DIR", "FIRMWARE_DIR", "DATA_DIR", "DATABASE_URL", "FRONTEND_ORIGINS", "FAKE_LLM_DIR",
@@ -52,6 +53,7 @@ def test_defaults_match_env_example(clean_env: pytest.MonkeyPatch) -> None:
     assert s.llm_fallback_provider is None
     assert s.gemini_model == "gemini-2.5-flash"
     assert (s.gemini_timeout_s, s.anthropic_timeout_s, s.ollama_timeout_s) == (120, 120, 300)
+    assert s.chat_timeout_s == 300
     assert s.ollama_num_ctx == 8192
     assert (s.max_attempts, s.auto_approve, s.run_timeout_s) == (5, False, 2400)
     assert s.device_mode == "virtual"
@@ -122,9 +124,23 @@ def test_provider_helpers(clean_env: pytest.MonkeyPatch) -> None:
     s = make()
     assert s.provider_model("ollama") == "qwen2.5-coder:7b"
     assert s.provider_timeout_s("ollama") == 300
-    assert s.available_providers() == ["gemini", "ollama"]
+    assert s.available_providers() == ["gemini", "ollama", "chat"]
     clean_env.setenv("FIRMLOOP_ENV", "test")
-    assert make().available_providers() == ["gemini", "ollama", "fake"]
+    assert make().available_providers() == ["gemini", "ollama", "chat", "fake"]
+
+
+def test_chat_provider_settings(clean_env: pytest.MonkeyPatch) -> None:
+    clean_env.setenv("LLM_PROVIDER", "chat")
+    s = make()
+    assert s.provider_configured("chat")
+    assert (s.provider_model("chat"), s.provider_timeout_s("chat")) == ("chat", 300)
+    assert run_budget_warnings(s) == []  # 5 * (300 + 120) = 2100 <= 2400
+
+
+def test_chat_cannot_be_the_fallback(clean_env: pytest.MonkeyPatch) -> None:
+    clean_env.setenv("LLM_FALLBACK_PROVIDER", "chat")
+    with pytest.raises(ValidationError, match="fallback"):
+        make()
 
 
 def test_budget_warning_for_defaults_is_empty(clean_env: pytest.MonkeyPatch) -> None:
