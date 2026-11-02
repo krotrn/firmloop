@@ -26,7 +26,7 @@ services:
       DATA_DIR: /data
       DATABASE_URL: sqlite+aiosqlite:////data/firmloop.db
       FRONTEND_ORIGINS: http://frontend:3000
-      ALLOWED_HOSTS: 127.0.0.1,localhost,backen
+      ALLOWED_HOSTS: 127.0.0.1,localhost,backend
     ports: !reset []
     volumes: !override
       - ./hardware:/repo/hardware:ro
