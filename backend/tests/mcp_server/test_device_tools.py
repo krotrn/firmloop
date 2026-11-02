@@ -4,7 +4,7 @@ import asyncio
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from fastapi import FastAPI
@@ -13,10 +13,16 @@ from mcp.shared.memory import create_connected_server_and_client_session
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from api.conftest import build_app
-from firmloop.events.models import DeviceTelemetryEvent
+from firmloop.db.models import Version
+from firmloop.errors import AppError, ErrorCode
+from firmloop.events.models import DeviceStatusEvent, DeviceTelemetryEvent
 from firmloop.hardware.registry import Registry
 from firmloop.llm.chat import ChatProvider
 from firmloop.main import assemble_app
+from firmloop.mcp.server import LatestTelemetry
+from firmloop.records import DeviceStatus
+from firmloop.targets.telemetry_pump import TelemetryPump
+from firmloop.targets.virtual import VirtualTarget
 from support.orchestration import (
     SPEC,
     SPEC_TWO,
@@ -26,6 +32,7 @@ from support.orchestration import (
     make,
     succeed_once,
 )
+from targets.fakes import FakeConnection, FakeRunner, Message, SimResponder, snapshot
 
 
 @asynccontextmanager
@@ -69,28 +76,21 @@ async def versions(
     return app, h, target, [first.result_version_id, second.result_version_id]
 
 
-async def test_lists_the_version_and_device_tools(engine: AsyncEngine, registry: Registry) -> None:
+async def test_descriptions_end_with_the_next_call(engine: AsyncEngine, registry: Registry) -> None:
     app, _h, _t = await build_app(engine, registry)
     async with _client(app) as session:
-        tools = {t.name: t for t in (await session.list_tools()).tools}
-
-    assert {
-        "list_hardware",
-        "list_versions",
-        "get_version",
-        "diff_versions",
-        "rollback",
-        "device_status",
-        "set_sensor",
-        "override",
-        "override_clear",
-        "reboot",
-        "reconnect",
-    } <= set(tools)
+        tools = (await session.list_tools()).tools
+    assert len(tools) > 11
+    for tool in tools:
+        description = (tool.description or "").strip()
+        last = description.rstrip(".").split(". ")[-1]
+        assert "call " in last, (tool.name, description)
+    by_name = {t.name: t.description or "" for t in tools}
     for name in ("rollback", "override", "reboot"):
-        description = tools[name].description or ""
-        assert "ask the user" in description and "real" in description
-    assert "work(" in (tools["rollback"].description or "")
+        text = by_name[name]
+        assert "ask the user" in text and "real" in text
+        assert text.index("ask the user") < text.rindex("call ")
+    assert by_name["rollback"].endswith("Then call work(run_id) until it returns finished.")
 
 
 async def test_hardware_matches_rest(engine: AsyncEngine, registry: Registry) -> None:
@@ -242,3 +242,163 @@ async def test_set_sensor_and_override_during_a_working_run(
         override = await _error(session, "override", {"channel": "fan", "value": True, "ms": 5})
         assert override["code"] == "RUN_ACTIVE"
         await _ok(session, "cancel", {"run_id": run["id"]})
+
+
+async def test_set_sensor_shows_in_telemetry_through_the_virtual_target(
+    engine: AsyncEngine, registry: Registry
+) -> None:
+    conn = FakeConnection(HeatResponder())
+    target = VirtualTarget(FakeRunner(conn), registry, load_timeout_s=1.0)
+    h = await make(engine, registry, target=cast(Any, target))
+    app = assemble_app(env(), h.bus)
+    app.state.engine = engine
+    app.state.registry = registry
+    app.state.env = env()
+    app.state.virtual_target = target
+    app.state.orchestrator = h.orch
+
+    async def device_mode() -> str:
+        return "virtual"
+
+    async def publish_status() -> None:
+        pass
+
+    pump = TelemetryPump(target, h.bus, device_mode=device_mode, publish_status=publish_status)
+    await target.load(Version(id="01FW", code='#include "FirmLoop.h"\n'))
+    pump.start()
+    try:
+        async with _client(app) as session:
+            assert await _ok(session, "set_sensor", {"channel": "temp", "value": 35}) == {
+                "ok": True
+            }
+            status = await _ok(session, "device_status", {"wait_ms": 300})
+    finally:
+        await pump.stop()
+        await target.aclose()
+    telemetry = status["telemetry"]
+    assert telemetry["s"]["temp"] == 35.0 and telemetry["a"]["fan"] == 1
+    assert status["telemetry_age_ms"] is not None
+
+
+class HeatResponder(SimResponder):
+    """A device that reports a snapshot as soon as a sensor value is set."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.t = 0
+
+    def __call__(self, conn: FakeConnection, msg: Message) -> None:
+        super().__call__(conn, msg)
+        if msg["type"] == "set":
+            self.t += 50
+            conn.push(snapshot(self.t, msg["value"], int(msg["value"] > 30)))
+
+
+async def test_rollback_without_firmware_is_a_tool_error(
+    versions: tuple[FastAPI, Harness, RecordingTarget, list[str]],
+    engine: AsyncEngine,
+    registry: Registry,
+) -> None:
+    _app, _h, _t, (v1, _v2) = versions
+    real_app, _h2, _t2 = await build_app(engine, registry, device_mode="real")
+    async with _client(real_app) as session:
+        error = await _error(session, "rollback", {"version_id": v1})
+    assert error["code"] == "NO_FIRMWARE"
+
+
+async def test_busy_device_is_a_tool_error(engine: AsyncEngine, registry: Registry) -> None:
+    app, _h, target = await build_app(engine, registry)
+    target.command_error = AppError(ErrorCode.DEVICE_BUSY, "busy")
+    async with _client(app) as session:
+        assert (await _error(session, "set_sensor", {"channel": "temp", "value": 20}))[
+            "code"
+        ] == "DEVICE_BUSY"
+        override = await _error(session, "override", {"channel": "fan", "value": True, "ms": 5})
+        assert override["code"] == "DEVICE_BUSY"
+
+
+def _event(t: int, **fields: Any) -> DeviceTelemetryEvent:
+    return DeviceTelemetryEvent(mode="run", t=t, s={"temp": 30.0}, a={}, d=[], **fields)
+
+
+async def _drain() -> None:
+    for _ in range(10):
+        await asyncio.sleep(0)
+
+
+async def test_telemetry_age_is_reported(engine: AsyncEngine, registry: Registry) -> None:
+    app, h, _t = await build_app(engine, registry)
+    now = [100.0]
+    app.state.telemetry = LatestTelemetry(h.bus, clock=lambda: now[0])
+    async with _client(app) as session:
+        assert (await _ok(session, "device_status"))["telemetry_age_ms"] is None
+        h.bus.publish(_event(1))
+        await _drain()
+        now[0] = 102.5
+        status = await _ok(session, "device_status")
+    assert status["telemetry"]["t"] == 1
+    assert status["telemetry_age_ms"] == 2500
+
+
+async def test_telemetry_is_dropped_when_the_device_goes_away(
+    engine: AsyncEngine, registry: Registry
+) -> None:
+    app, h, _t = await build_app(engine, registry)
+    async with _client(app) as session:
+        h.bus.publish(DeviceStatusEvent(status=DeviceStatus(mode="virtual", connected=True)))
+        h.bus.publish(_event(1))
+        await _drain()
+        assert (await _ok(session, "device_status"))["telemetry"]["t"] == 1
+
+        h.bus.publish(DeviceStatusEvent(status=DeviceStatus(mode="virtual", connected=False)))
+        await _drain()
+        gone = await _ok(session, "device_status")
+        assert (gone["telemetry"], gone["telemetry_age_ms"]) == (None, None)
+
+        h.bus.publish(DeviceStatusEvent(status=DeviceStatus(mode="virtual", connected=True)))
+        h.bus.publish(_event(2))
+        await _drain()
+        assert (await _ok(session, "device_status"))["telemetry"]["t"] == 2
+
+        h.bus.publish(DeviceStatusEvent(status=DeviceStatus(mode="real", connected=True)))
+        await _drain()
+        assert (await _ok(session, "device_status"))["telemetry"] is None
+
+
+async def test_telemetry_follower_survives_a_failure(
+    engine: AsyncEngine, registry: Registry, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app, h, _t = await build_app(engine, registry)
+    tracker: LatestTelemetry = app.state.telemetry
+    original = tracker.apply
+    calls = 0
+
+    def flaky(event: Any) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise RuntimeError("boom")
+        original(event)
+
+    monkeypatch.setattr(tracker, "apply", flaky)
+    async with _client(app) as session:
+        h.bus.publish(_event(1))
+        h.bus.publish(_event(2))
+        await _drain()
+        assert (await _ok(session, "device_status"))["telemetry"]["t"] == 2
+
+
+async def test_list_versions_pages_with_a_cursor(
+    versions: tuple[FastAPI, Harness, RecordingTarget, list[str]],
+) -> None:
+    app, h, _t, (v1, v2) = versions
+    async with _client(app) as session:
+        first = await _ok(session, "list_versions", {"session_id": h.session_id, "limit": 1})
+        assert [v["id"] for v in first["items"]] == [v2]
+        rest = await _ok(
+            session,
+            "list_versions",
+            {"session_id": h.session_id, "limit": 1, "cursor": first["next_cursor"]},
+        )
+        assert [v["id"] for v in rest["items"]] == [v1]
+        assert rest["next_cursor"] is None

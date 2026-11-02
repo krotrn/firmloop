@@ -84,12 +84,23 @@ async def _start(session: ClientSession) -> tuple[str, str]:
     return created["id"], run["id"]
 
 
-async def test_lists_the_run_tools(engine: AsyncEngine, registry: Registry) -> None:
+async def test_lists_every_tool(engine: AsyncEngine, registry: Registry) -> None:
     app, _ = await _app(engine, registry)
     async with _client(app) as session:
         tools = {t.name: t for t in (await session.list_tools()).tools}
 
-    assert set(tools) >= {
+    assert set(tools) == {
+        "list_hardware",
+        "list_versions",
+        "get_version",
+        "diff_versions",
+        "rollback",
+        "device_status",
+        "set_sensor",
+        "override",
+        "override_clear",
+        "reboot",
+        "reconnect",
         "list_sessions",
         "create_session",
         "start_run",

@@ -8,7 +8,7 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import AsyncGenerator, Sequence
+from collections.abc import AsyncGenerator, Callable, Sequence
 from contextlib import asynccontextmanager
 from typing import Annotated, Any, Literal, cast
 
@@ -43,11 +43,13 @@ from firmloop.api.versions import (
     version_page,
 )
 from firmloop.api.views import (
+    DEFAULT_LIMIT,
     MAX_LIMIT,
     RunOut,
     SessionList,
     SessionOut,
     create_session_out,
+    parse_cursor,
     run_out,
     session_page,
 )
@@ -56,7 +58,12 @@ from firmloop.db import repo
 from firmloop.db.models import TERMINAL_RUN_STATUSES
 from firmloop.errors import AppError, ErrorCode
 from firmloop.events.bus import EventBus, Subscription
-from firmloop.events.models import DeviceTelemetryEvent, RunLogEvent
+from firmloop.events.models import (
+    DeviceStatusEvent,
+    DeviceTelemetryEvent,
+    RunLogEvent,
+    ServerEvent,
+)
 from firmloop.hardware.registry import Registry
 from firmloop.records import DeviceStatus
 from firmloop.spec.wire import WireFollowupUnderstandResult, WireUnderstandResult
@@ -138,15 +145,39 @@ class TelemetrySnapshot(BaseModel):
 class DeviceSnapshot(BaseModel):
     device: DeviceStatus
     telemetry: TelemetrySnapshot | None
+    telemetry_age_ms: int | None
 
 
 class LatestTelemetry:
-    """The latest `device.telemetry` event the backend published. One long-lived task reads the
-    event bus while `run()` is entered."""
+    """The latest `device.telemetry` event the backend published and when it arrived. One
+    long-lived task reads the event bus while `run()` is entered. The reading is dropped when
+    the device disconnects or its mode changes, since it no longer describes the device."""
 
-    def __init__(self, bus: EventBus) -> None:
+    def __init__(self, bus: EventBus, clock: Callable[[], float] = time.monotonic) -> None:
         self._bus = bus
-        self.latest: TelemetrySnapshot | None = None
+        self._clock = clock
+        self._latest: tuple[TelemetrySnapshot, float] | None = None
+        self._mode: str | None = None
+
+    @property
+    def latest(self) -> TelemetrySnapshot | None:
+        return None if self._latest is None else self._latest[0]
+
+    @property
+    def age_ms(self) -> int | None:
+        if self._latest is None:
+            return None
+        return max(0, round((self._clock() - self._latest[1]) * 1000))
+
+    def apply(self, event: ServerEvent) -> None:
+        if isinstance(event, DeviceTelemetryEvent):
+            snapshot = TelemetrySnapshot.model_validate(event.model_dump(exclude={"type", "ts"}))
+            self._latest = (snapshot, self._clock())
+        elif isinstance(event, DeviceStatusEvent):
+            status = event.status
+            if not status.connected or (self._mode is not None and status.mode != self._mode):
+                self._latest = None
+            self._mode = status.mode
 
     @asynccontextmanager
     async def run(self) -> AsyncGenerator[None]:
@@ -156,16 +187,13 @@ class LatestTelemetry:
             nonlocal sub
             while True:
                 try:
-                    event = await sub.get()
+                    self.apply(await sub.get())
                 except ConnectionAbortedError:
                     # Events were dropped: subscribe again; the next telemetry event replaces it.
                     self._bus.unsubscribe(sub)
                     sub = self._bus.subscribe()
-                    continue
-                if isinstance(event, DeviceTelemetryEvent):
-                    self.latest = TelemetrySnapshot(
-                        mode=event.mode, t=event.t, s=event.s, a=event.a, d=event.d
-                    )
+                except Exception:
+                    logger.exception("could not handle a device event")
 
         task = asyncio.create_task(follow())
         try:
@@ -286,10 +314,14 @@ class _Tools:
         return hardware_out(self._registry)
 
     async def list_versions(
-        self, session_id: str, status: Literal["candidate", "promoted", "rejected"] | None = None
+        self,
+        session_id: str,
+        status: Literal["candidate", "promoted", "rejected"] | None = None,
+        limit: Annotated[int, Field(ge=1, le=MAX_LIMIT)] = DEFAULT_LIMIT,
+        cursor: str | None = None,
     ) -> VersionList:
         return await version_page(
-            self._engine, session_id, status=status, limit=MAX_LIMIT, offset=0
+            self._engine, session_id, status=status, limit=limit, offset=parse_cursor(cursor)
         )
 
     async def get_version(self, version_id: str) -> VersionOut:
@@ -308,7 +340,9 @@ class _Tools:
         if wait_ms > 0:
             await asyncio.sleep(wait_ms / 1000)
         return DeviceSnapshot(
-            device=await self._orch.device_status(), telemetry=self._telemetry.latest
+            device=await self._orch.device_status(),
+            telemetry=self._telemetry.latest,
+            telemetry_age_ms=self._telemetry.age_ms,
         )
 
     async def set_sensor(self, channel: str, value: StrictBool | int | float) -> CommandOut:
@@ -464,25 +498,36 @@ _DESCRIPTIONS = {
     "calling this. Then call work(run_id).",
     "reject": "Send the proposed spec back with the user's feedback. Then call work(run_id).",
     "cancel": "Stop a run. Then call work(run_id) to see it finish.",
-    "list_hardware": "List the channels and components generated code can use.",
+    "list_hardware": "List the channels and components generated code can use. Then call "
+    "start_run with a request that uses them.",
     "list_versions": "List the verified versions of a session, newest first. status filters by "
-    "candidate, promoted or rejected.",
-    "get_version": "Read a version with its spec and code.",
+    "candidate, promoted or rejected; limit sets the page size, and when next_cursor is not null "
+    "pass it as cursor for the next page. Then call get_version or diff_versions with a version "
+    "id.",
+    "get_version": "Read a version with its spec and code. Then call diff_versions to compare "
+    "it, or rollback to put it on the device.",
     "diff_versions": "Compare a version with another version of the same session (against): "
-    "returns the spec changes and both versions' code.",
+    "returns the spec changes and both versions' code. Then call rollback to put one of them on "
+    "the device, or start_run to change the program.",
     "rollback": "Put an earlier promoted version back on the device; starts a run of kind "
-    "rollback. Then call work(run_id) until it returns kind=finished. When device_mode is real, "
-    "ask the user first.",
+    "rollback. When device_mode is real, ask the user first. Then call work(run_id) until it "
+    "returns finished.",
     "device_status": "Read the device (mode, connection, running version) and the latest "
-    "telemetry. wait_ms (0..5000) waits first, so values changed by set_sensor or override can "
-    "settle.",
+    "telemetry with its age in telemetry_age_ms. wait_ms (0..5000) waits first, so values "
+    "changed by set_sensor or override can settle. Then call set_sensor or override to change "
+    "the device, or call device_status again.",
     "set_sensor": "Set a sensor channel's value on the virtual device. Not possible in real "
-    "mode, and refused with RUN_ACTIVE while a run works.",
-    "override": "Force an on/off output channel to a value for ms milliseconds. When "
-    "device_mode is real, ask the user first. Refused with RUN_ACTIVE while a run works.",
-    "override_clear": "End an override of an output channel early.",
-    "reboot": "Restart the board (real mode only). When device_mode is real, ask the user first.",
-    "reconnect": "Check the device connection and return its status.",
+    "mode, and refused with RUN_ACTIVE while a run works. Then call device_status(wait_ms=500) "
+    "to see the effect.",
+    "override": "Force an on/off output channel to a value for ms milliseconds. Refused with "
+    "RUN_ACTIVE while a run works. When device_mode is real, ask the user first. Then call "
+    "device_status(wait_ms=500) to see the effect.",
+    "override_clear": "End an override of an output channel early. Then call "
+    "device_status(wait_ms=500) to see the effect.",
+    "reboot": "Restart the board (real mode only). When device_mode is real, ask the user "
+    "first. Then call device_status(wait_ms=2000) to see the board come back.",
+    "reconnect": "Check the device connection and return its status. Then call device_status "
+    "to read the telemetry.",
     "get_run": "Read a run with its attempts and test totals. Then call work(run_id) if it is "
     "still going.",
 }
