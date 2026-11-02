@@ -159,7 +159,7 @@ class LatestTelemetry:
         self._bus = bus
         self._clock = clock
         self._latest: tuple[TelemetrySnapshot, float] | None = None
-        self._accepting = True  # until a status says otherwise
+        self._virtual = True  # until a status says otherwise
 
     @property
     def latest(self) -> TelemetrySnapshot | None:
@@ -172,20 +172,22 @@ class LatestTelemetry:
         return max(0, round((self._clock() - self._latest[1]) * 1000))
 
     def reset(self) -> None:
-        """Forget the reading and what the statuses said."""
+        """Forget the reading and the mode the statuses showed; telemetry is accepted again."""
         self._latest = None
-        self._accepting = True
+        self._virtual = True
 
     def apply(self, event: ServerEvent) -> None:
         if isinstance(event, DeviceTelemetryEvent):
-            if self._accepting:
+            if self._virtual:
                 snapshot = TelemetrySnapshot.model_validate(
                     event.model_dump(exclude={"type", "ts"})
                 )
                 self._latest = (snapshot, self._clock())
         elif isinstance(event, DeviceStatusEvent):
-            self._accepting = event.status.connected and event.status.mode == "virtual"
-            if not self._accepting:
+            # Only the mode gates telemetry: a stream that flows in virtual mode shows the
+            # device is there, even after a status that said it was not connected.
+            self._virtual = event.status.mode == "virtual"
+            if not self._virtual or not event.status.connected:
                 self._latest = None
 
     @asynccontextmanager

@@ -414,15 +414,28 @@ async def test_telemetry_after_a_disconnect_or_in_real_mode_is_ignored(
 ) -> None:
     app, h, _t = await build_app(engine, registry)
     async with _client(app) as session:
-        for refused in (_status(connected=False), _status(connected=True, mode="real")):
-            h.bus.publish(refused)
-            h.bus.publish(_event(5))
-            await _drain()
-            assert (await _ok(session, "device_status"))["telemetry"] is None
+        h.bus.publish(_status(connected=True, mode="real"))
+        h.bus.publish(_event(5))
+        await _drain()
+        assert (await _ok(session, "device_status"))["telemetry"] is None
         h.bus.publish(_status(connected=True))
         h.bus.publish(_event(6))
         await _drain()
         assert (await _ok(session, "device_status"))["telemetry"]["t"] == 6
+
+
+async def test_telemetry_after_a_disconnect_status_is_accepted(
+    engine: AsyncEngine, registry: Registry
+) -> None:
+    app, h, _t = await build_app(engine, registry)
+    async with _client(app) as session:
+        h.bus.publish(_event(1))
+        h.bus.publish(_status(connected=False))
+        await _drain()
+        assert (await _ok(session, "device_status"))["telemetry"] is None
+        h.bus.publish(_event(2))
+        await _drain()
+        assert (await _ok(session, "device_status"))["telemetry"]["t"] == 2
 
 
 async def test_the_first_status_clears_the_reading(engine: AsyncEngine, registry: Registry) -> None:
@@ -440,7 +453,7 @@ async def test_an_overflow_forgets_the_reading_and_the_state() -> None:
     bus = EventBus(max_queue=2)
     tracker = LatestTelemetry(bus)
     async with tracker.run():
-        bus.publish(_status(connected=False))
+        bus.publish(_status(connected=True, mode="real"))
         await _drain()
         assert tracker.latest is None
         for _ in range(3):  # more than the queue holds, so events are dropped
@@ -448,7 +461,7 @@ async def test_an_overflow_forgets_the_reading_and_the_state() -> None:
         await _drain()
         tracker.apply(_event(1))
         assert tracker.latest is not None
-        bus.publish(_status(connected=False))
+        bus.publish(_status(connected=True, mode="real"))
         for _ in range(3):
             bus.publish(_status(connected=True))
         await _drain()
