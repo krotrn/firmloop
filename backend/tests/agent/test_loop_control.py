@@ -14,6 +14,7 @@ from firmloop.errors import AppError, ErrorCode
 from firmloop.events.models import RunLlmAnsweredEvent, RunLlmWaitingEvent
 from firmloop.hardware.registry import Registry
 from firmloop.llm.chat import ChatBridge, ChatProvider, ChatTask
+from firmloop.llm.fake import FakeProvider
 from firmloop.spec import models as m
 from support.orchestration import (
     GOOD_CODE,
@@ -92,6 +93,22 @@ async def test_chat_provider_answers_for_its_run(engine: AsyncEngine, registry: 
         ("chat", "claude-opus-5-5"),
         ("chat", "chat"),
     ]
+
+
+async def test_chat_primary_never_falls_back_when_the_chat_times_out(
+    engine: AsyncEngine, registry: Registry
+) -> None:
+    fallback = FakeProvider([spec_reply(), code_reply()])
+    h = await make(
+        engine,
+        registry,
+        providers=lambda _settings: (ChatProvider(timeout_s=0.1), fallback),
+    )
+
+    run = await h.request()
+
+    assert (run.status, run.failure_code) == ("failed", "LLM_TIMEOUT")
+    assert fallback.calls == []
 
 
 async def test_cancel_drops_the_pending_chat_task(engine: AsyncEngine, registry: Registry) -> None:

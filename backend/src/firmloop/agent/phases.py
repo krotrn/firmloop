@@ -527,6 +527,9 @@ class Phases:
                 raise AppError(ErrorCode.LLM_UNAVAILABLE, exc.message, exc.details) from exc
             if isinstance(primary, ChatProvider):
                 primary.bind(self.d.chat, run_id=run.id, session_id=run.session_id)
+                # A chat timeout fails the run; a fallback would answer behind the user's back
+                # while the UI keeps waiting for the chat app.
+                fallback = None
             caller = StructuredCaller(self.d.engine, primary, fallback)
             self._callers[run.id] = caller
         return caller
