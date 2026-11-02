@@ -10,6 +10,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from firmloop.agent.loop import RunOrchestrator
+from firmloop.agent.phases import ProviderFactory
 from firmloop.agent.templates import load_api_header
 from firmloop.clients.runner import RunnerClient
 from firmloop.db import repo
@@ -63,6 +64,7 @@ def new_orchestrator(
     target: VirtualTarget,
     header: str,
     verify: VerifyFn | None = None,
+    providers: ProviderFactory | None = None,
     **settings: Any,
 ) -> RunOrchestrator:
     """An orchestrator wired like the app's, with the fake provider; also used to simulate a
@@ -76,7 +78,7 @@ def new_orchestrator(
         runner=runner,
         virtual_target=target,
         header=header,
-        providers=lambda _settings: (provider, None),
+        providers=providers or (lambda _settings: (provider, None)),
         **extra,
     )
 
@@ -89,6 +91,7 @@ async def live_harness(
     llm: Sequence[Any] = (),
     provider: FakeProvider | None = None,
     verify: VerifyFn | None = None,
+    providers: ProviderFactory | None = None,
     **settings: Any,
 ) -> AsyncGenerator[LiveHarness]:
     base = env(**settings)
@@ -98,7 +101,16 @@ async def live_harness(
     bus = RecordingBus()
     provider = provider or FakeProvider(list(llm))
     orch = new_orchestrator(
-        engine, registry, bus, provider, runner, target, header, verify=verify, **settings
+        engine,
+        registry,
+        bus,
+        provider,
+        runner,
+        target,
+        header,
+        verify=verify,
+        providers=providers,
+        **settings,
     )
     try:
         await orch.startup()
