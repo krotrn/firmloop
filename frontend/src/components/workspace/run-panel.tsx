@@ -93,7 +93,11 @@ export function RunPanel({
   deviceMode: DeviceMode | null;
 }) {
   const logLines = useRunLog(sessionId, run?.id ?? null);
-  const chatWait = useChatWait(sessionId, run?.id ?? null);
+  const chatWait = useChatWait(
+    sessionId,
+    run?.id ?? null,
+    run?.chat_task?.task_id ?? null
+  );
   return (
     <Tabs defaultValue="run" className="min-w-0">
       <TabsList className="w-full justify-start overflow-x-auto overflow-y-hidden">

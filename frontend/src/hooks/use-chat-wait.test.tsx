@@ -88,4 +88,66 @@ describe("useChatWait", () => {
     );
     expect(result.current).toBe("idle");
   });
+
+  describe("seeded from the loaded run", () => {
+    const render1 = (seed: string | null) =>
+      renderHook(
+        ({ seed }: { seed: string | null }) => useChatWait("s1", "r1", seed),
+        { wrapper: Wrapper, initialProps: { seed } }
+      );
+
+    it("waits for the seeded task with no events", () => {
+      const { result } = render1("t1");
+      act(() => FakeWebSocket.last.open());
+      expect(result.current).toBe("waiting");
+    });
+
+    it("is idle with no seed and no events", () => {
+      const { result } = render1(null);
+      act(() => FakeWebSocket.last.open());
+      expect(result.current).toBe("idle");
+    });
+
+    it("clears a seeded wait when its task is answered", () => {
+      const { result } = render1("t1");
+      act(() => FakeWebSocket.last.open());
+      act(() => FakeWebSocket.last.receive(answered("r1", "t1")));
+      expect(result.current).toBe("answered");
+    });
+
+    it("clears a seeded wait when the run finishes", () => {
+      const { result } = render1("t1");
+      act(() => FakeWebSocket.last.open());
+      act(() =>
+        FakeWebSocket.last.receive({
+          type: "run.finished",
+          ts: TS,
+          run_id: "r1",
+          session_id: "s1",
+          status: "cancelled",
+          failure: null,
+          version: null,
+          tests_passed: null,
+          tests_total: null,
+        })
+      );
+      expect(result.current).toBe("idle");
+    });
+
+    it("clears when the run is refetched without a pending task", () => {
+      const { result, rerender } = render1("t1");
+      act(() => FakeWebSocket.last.open());
+      expect(result.current).toBe("waiting");
+      rerender({ seed: null });
+      expect(result.current).toBe("idle");
+    });
+
+    it("keeps a newer live wait after the seed goes away", () => {
+      const { result, rerender } = render1("t1");
+      act(() => FakeWebSocket.last.open());
+      act(() => FakeWebSocket.last.receive(waiting("r1", "t2")));
+      rerender({ seed: null });
+      expect(result.current).toBe("waiting");
+    });
+  });
 });

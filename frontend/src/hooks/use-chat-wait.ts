@@ -8,16 +8,29 @@ export type ChatWaitState = "idle" | "waiting" | "answered";
 
 interface RunWait {
   pending: readonly string[];
+  /** Task ids the events reported as answered; a seeded task in here is no longer waiting. */
+  closed: readonly string[];
   answered: boolean;
+  finished: boolean;
 }
 
+const EMPTY_WAIT: RunWait = {
+  pending: [],
+  closed: [],
+  answered: false,
+  finished: false,
+};
+
 /**
- * Whether one run is waiting for the chat app to answer an LLM step, from `run.llm_waiting`
- * and `run.llm_answered`. The run ending clears any open wait.
+ * Whether one run is waiting for the chat app to answer an LLM step. `seededTaskId` is the task
+ * the loaded run reports as pending, so the wait shows after a reload; `run.llm_waiting` and
+ * `run.llm_answered` take over from there, and the run ending clears any open wait. A seed that
+ * the run no longer reports (null) is gone.
  */
 export function useChatWait(
   sessionId: string,
-  runId: string | null
+  runId: string | null,
+  seededTaskId: string | null = null
 ): ChatWaitState {
   const [store, setStore] = React.useState<{
     sessionId: string;
@@ -40,7 +53,7 @@ export function useChatWait(
     const id = event.run_id;
     setStore((prev) => {
       if (prev.sessionId !== sessionId) return prev;
-      const current = prev.runs[id] ?? { pending: [], answered: false };
+      const current = prev.runs[id] ?? EMPTY_WAIT;
       let next: RunWait;
       if (event.type === "run.llm_waiting") {
         next = {
@@ -48,23 +61,30 @@ export function useChatWait(
             ...current.pending.filter((t) => t !== event.task_id),
             event.task_id,
           ],
+          closed: current.closed.filter((t) => t !== event.task_id),
           answered: current.answered,
+          finished: false,
         };
       } else if (event.type === "run.llm_answered") {
         next = {
           pending: current.pending.filter((t) => t !== event.task_id),
+          closed: [...current.closed, event.task_id],
           answered: true,
+          finished: current.finished,
         };
       } else {
-        next = { pending: [], answered: current.answered };
+        next = { ...current, pending: [], finished: true };
       }
       return { sessionId, runs: { ...prev.runs, [id]: next } };
     });
   });
 
   if (runId === null || store.sessionId !== sessionId) return "idle";
-  const wait = store.runs[runId];
-  if (!wait) return "idle";
-  if (wait.pending.length > 0) return "waiting";
+  const wait = store.runs[runId] ?? EMPTY_WAIT;
+  const seeded =
+    seededTaskId !== null &&
+    !wait.finished &&
+    !wait.closed.includes(seededTaskId);
+  if (wait.pending.length > 0 || seeded) return "waiting";
   return wait.answered ? "answered" : "idle";
 }
