@@ -155,6 +155,8 @@ Total ≈ ₹1,800 - 2,500. Wiring is fixed and defined in `hardware/*/manifest.
 | LED + 220 Ω | GPIO 18 | `led` |
 | SSD1306 0.96" OLED (I²C) | SDA 21, SCL 22 | `display` |
 
+**Witness board** (optional, D-132): a second ESP32 DevKitC that watches the `fan`, `buzzer` and `led` lines, measures fan current (INA219) and drives `button` (PC817 optocoupler) and `light` (bright LED at the LDR). It runs fixed firmware from `firmware/witness/`, never generated code. Parts in [docs/PARTS.md](docs/PARTS.md); pins are recorded in the manifests' `witness:` blocks.
+
 Safety: **never** switch mains voltage with the relay. Fan uses its own 5 V supply; ESP32 pins never power a motor.
 
 Relay note: the ESP32 drives 3.3 V logic. Many cheap 5 V active-low relay modules do not switch **off** reliably from 3.3 V. Buy a module sold as "3.3 V trigger compatible" or one with a high/low trigger jumper, and test it in TASKS 7.0. Fallback if it misbehaves: a logic-level MOSFET module (e.g. AO3400/IRLZ44N based) to switch the 5 V fan. Same pin and channel, only the manifest's `active_low` changes.
