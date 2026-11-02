@@ -131,7 +131,7 @@ The chat proposes a spec and shows it to you. Reply yes to confirm, and the chat
 
 The chat moves the virtual temperature sensor and reports whether the fan turned on.
 
-**What the chat may do.** It can start and follow runs, answer questions and confirm or reject specs. It can list and compare versions, read the device status and telemetry, and in virtual mode move sensors. It can also roll back, set overrides and reboot a real board, but it asks you first each time. Settings (provider, device mode and the rest) stay in the browser.
+**What the chat may do.** It can start and follow runs, answer questions and confirm or reject specs. It can list and compare versions, read the device status and telemetry, and in virtual mode move sensors. It can also roll back, set overrides and reboot a real board. Its tool descriptions tell it to ask you before each of these on a real board. Settings (provider, device mode and the rest) stay in the browser.
 
 **Limits**
 
